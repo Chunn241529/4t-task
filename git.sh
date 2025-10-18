@@ -1,17 +1,28 @@
 #!/bin/bash
-
-# git-smart.sh - Git workflow thông minh (KHÔNG manual config)
+# git-smart.sh - Git workflow thông minh HOÀN CHỈNH
 # Sử dụng: ./git-smart.sh [commit_message]
 
-set -e  # Dừng nếu có lỗi
+set -e
 
-REPO_NAME=$(basename "$PWD")
+REPO_NAME="4t-task"
+GITHUB_USER="Chunn241529"
 REMOTE="origin"
 BRANCH_MAIN="main"
 
-# 1. SKIP CONFIG - SỬ DỤNG GIT DEFAULT
+# 1. TẠO CONFIG GIT (TỰ ĐỘNG)
 setup_config() {
-    echo "⏭️  Skip manual config - dùng Git default"
+    if ! git config user.name &>/dev/null; then
+        echo "👤 Nhập tên:"
+        read -r user_name
+        git config --global user.name "$user_name"
+
+        echo "📧 Nhập email:"
+        read -r user_email
+        git config --global user.email "$user_email"
+        echo "✅ Config git hoàn tất"
+    else
+        echo "✅ Config git đã có"
+    fi
 }
 
 # 2. TẠO REPOSITORY NẾU CHƯA CÓ
@@ -21,48 +32,46 @@ init_repo() {
         echo "# $REPO_NAME" > README.md
         git add README.md
         git commit -m "Initial commit"
-        echo "✅ Repository đã tạo"
+
+        # TẠO GITHUB REPO TỰ ĐỘNG
+        if ! curl -s "https://github.com/$GITHUB_USER/$REPO_NAME" | grep -q "404"; then
+            echo "✅ Repo GitHub đã tồn tại"
+        else
+            echo "🚀 Tạo repo GitHub..."
+            xdg-open "https://github.com/new?repo=$REPO_NAME"
+            echo "   ⬆️ Tạo xong thì Enter để tiếp tục"
+            read
+        fi
+
+        git remote add $REMOTE "https://github.com/$GITHUB_USER/$REPO_NAME.git"
+        git push -u $REMOTE $BRANCH_MAIN
+        echo "✅ Repository local + GitHub OK"
     fi
 }
 
 # 3. COMMIT
 do_commit() {
     local msg="${1:-Auto commit $(date '+%Y-%m-%d %H:%M')}"
-
     if ! git diff --quiet; then
         git add .
         git commit -m "$msg"
         echo "✅ Đã commit: $msg"
     else
-        echo "⚠️  Không có thay đổi để commit"
+        echo "⚠️  Không có thay đổi"
     fi
 }
 
-# 4. PUSH (TỰ ĐỘNG ADD REMOTE NẾU CHƯA CÓ)
+# 4. PUSH
 do_push() {
-    current_branch=$(git branch --show-current)
-
-    if ! git remote | grep -q "$REMOTE"; then
-        echo "❓ Chưa có remote. Nhập URL GitHub (Enter để skip):"
-        read -r remote_url
-        if [[ -n "$remote_url" ]]; then
-            git remote add $REMOTE "$remote_url"
-            echo "✅ Đã thêm remote: $remote_url"
-        else
-            echo "⚠️  Skip push (chưa có remote)"
-            return
-        fi
-    fi
-
-    git push -u $REMOTE $current_branch
-    echo "✅ Đã push lên $REMOTE/$current_branch"
+    git push $REMOTE $(git branch --show-current)
+    echo "✅ Đã push"
 }
 
 # 5. TẠO BRANCH
 create_branch() {
     local branch_name="${1:-feature/$(date '+%Y%m%d-%H%M')}"
     git checkout -b "$branch_name"
-    echo "✅ Đã tạo & checkout branch: $branch_name"
+    echo "✅ Tạo & checkout: $branch_name"
 }
 
 # 6. CHECKOUT BRANCH
@@ -70,9 +79,9 @@ checkout_branch() {
     local branch_name="$1"
     if git branch | grep -q "$branch_name"; then
         git checkout "$branch_name"
-        echo "✅ Đã checkout: $branch_name"
+        echo "✅ Checkout: $branch_name"
     else
-        echo "❌ Branch '$branch_name' không tồn tại"
+        echo "❌ Branch không tồn tại"
         exit 1
     fi
 }
@@ -84,42 +93,24 @@ do_merge() {
 
     if [[ "$current_branch" != "$target_branch" ]]; then
         git checkout "$target_branch"
-        git merge "$current_branch" --no-ff -m "Merge branch '$current_branch'"
-        echo "✅ Đã merge $current_branch vào $target_branch"
+        git merge "$current_branch" --no-ff -m "Merge '$current_branch'"
+        git push $REMOTE $target_branch
+        echo "✅ Merge $current_branch → $target_branch"
     else
         echo "⚠️  Đã ở branch đích"
     fi
 }
 
-# CHẠY THEO LUỒNG
+# FULL WORKFLOW THEO THỨ TỰ
 main() {
     setup_config
     init_repo
-
-    case "$1" in
-        "commit")
-            do_commit "$2"
-            ;;
-        "push")
-            do_commit "$2"
-            do_push
-            ;;
-        "branch")
-            create_branch "$2"
-            ;;
-        "checkout")
-            checkout_branch "$2"
-            ;;
-        "merge")
-            do_merge "$2"
-            ;;
-        *)
-            # DEFAULT: Full workflow
-            do_commit "$1"
-            do_push
-            create_branch
-            ;;
-    esac
+    do_commit "$1"
+    do_push
+    create_branch "$2"
+    echo "🎉 Hoàn tất workflow!"
+    echo "📂 https://github.com/$GITHUB_USER/$REPO_NAME"
 }
 
+# CHẠY
 main "$@"
