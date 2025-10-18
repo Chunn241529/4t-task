@@ -1,0 +1,5 @@
+.venv
+test.db
+main_ui_old.py
+/__pycache__/
+.env
