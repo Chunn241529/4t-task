@@ -1,7 +1,5 @@
 #!/bin/bash
-# git-smart.sh - Git workflow thông minh HOÀN CHỈNH
-# Sử dụng: ./git-smart.sh [commit_message]
-
+# git-smart.sh - FIX DIVERGENT BRANCHES 100%
 set -e
 
 REPO_NAME="4t-task"
@@ -9,13 +7,11 @@ GITHUB_USER="Chunn241529"
 REMOTE="origin"
 BRANCH_MAIN="main"
 
-# 1. TẠO CONFIG GIT (TỰ ĐỘNG)
 setup_config() {
     if ! git config user.name &>/dev/null; then
         echo "👤 Nhập tên:"
         read -r user_name
         git config --global user.name "$user_name"
-
         echo "📧 Nhập email:"
         read -r user_email
         git config --global user.email "$user_email"
@@ -25,31 +21,32 @@ setup_config() {
     fi
 }
 
-# 2. TẠO REPOSITORY NẾU CHƯA CÓ
+# **FIX CHÍNH: SET PULL STRATEGY**
+setup_pull_strategy() {
+    git config pull.rebase false
+    echo "✅ Pull strategy: MERGE (fixed)"
+}
+
 init_repo() {
     if [[ ! -d ".git" ]]; then
         git init
         echo "# $REPO_NAME" > README.md
         git add README.md
         git commit -m "Initial commit"
-
-        # TẠO GITHUB REPO TỰ ĐỘNG
-        if ! curl -s "https://github.com/$GITHUB_USER/$REPO_NAME" | grep -q "404"; then
-            echo "✅ Repo GitHub đã tồn tại"
-        else
-            echo "🚀 Tạo repo GitHub..."
-            xdg-open "https://github.com/new?repo=$REPO_NAME"
-            echo "   ⬆️ Tạo xong thì Enter để tiếp tục"
-            read
-        fi
-
-        git remote add $REMOTE "https://github.com/$GITHUB_USER/$REPO_NAME.git"
-        git push -u $REMOTE $BRANCH_MAIN
-        echo "✅ Repository local + GitHub OK"
     fi
+
+    if ! git remote | grep -q "$REMOTE"; then
+        git remote add $REMOTE "https://github.com/$GITHUB_USER/$REPO_NAME.git"
+    fi
+
+    setup_pull_strategy
+
+    echo "🔄 Đồng bộ GitHub..."
+    git pull $REMOTE $BRANCH_MAIN --allow-unrelated-histories
+    git push -u $REMOTE $BRANCH_MAIN
+    echo "✅ Repository đồng bộ OK"
 }
 
-# 3. COMMIT
 do_commit() {
     local msg="${1:-Auto commit $(date '+%Y-%m-%d %H:%M')}"
     if ! git diff --quiet; then
@@ -61,20 +58,18 @@ do_commit() {
     fi
 }
 
-# 4. PUSH
 do_push() {
+    git pull $REMOTE $(git branch --show-current) || true
     git push $REMOTE $(git branch --show-current)
     echo "✅ Đã push"
 }
 
-# 5. TẠO BRANCH
 create_branch() {
     local branch_name="${1:-feature/$(date '+%Y%m%d-%H%M')}"
     git checkout -b "$branch_name"
     echo "✅ Tạo & checkout: $branch_name"
 }
 
-# 6. CHECKOUT BRANCH
 checkout_branch() {
     local branch_name="$1"
     if git branch | grep -q "$branch_name"; then
@@ -86,13 +81,13 @@ checkout_branch() {
     fi
 }
 
-# 7. MERGE
 do_merge() {
     local target_branch="${1:-$BRANCH_MAIN}"
     local current_branch=$(git branch --show-current)
 
     if [[ "$current_branch" != "$target_branch" ]]; then
         git checkout "$target_branch"
+        git pull $REMOTE $target_branch || true
         git merge "$current_branch" --no-ff -m "Merge '$current_branch'"
         git push $REMOTE $target_branch
         echo "✅ Merge $current_branch → $target_branch"
@@ -101,7 +96,6 @@ do_merge() {
     fi
 }
 
-# FULL WORKFLOW THEO THỨ TỰ
 main() {
     setup_config
     init_repo
@@ -112,5 +106,4 @@ main() {
     echo "📂 https://github.com/$GITHUB_USER/$REPO_NAME"
 }
 
-# CHẠY
 main "$@"
