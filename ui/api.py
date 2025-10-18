@@ -4,7 +4,21 @@ import base64
 from typing import Optional
 from textual.widgets import Static, Markdown
 from textual.containers import ScrollableContainer
+from textual.reactive import reactive
 
+class AnimatedSpinner(Static):
+    """A custom Static widget that animates a spinner using a sequence of characters."""
+    spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+    current_index = reactive(0)
+
+    def on_mount(self) -> None:
+        """Start the animation when the widget is mounted."""
+        self.set_interval(0.1, self.update_spinner)
+
+    def update_spinner(self) -> None:
+        """Cycle through spinner characters."""
+        self.current_index = (self.current_index + 1) % len(self.spinner_chars)
+        self.update(self.spinner_chars[self.current_index])
 
 async def send_chat_request(
     http_client: httpx.AsyncClient,
@@ -26,6 +40,15 @@ async def send_chat_request(
     params = {"conversation_id": conversation_id} if conversation_id else {}
 
     try:
+        # Thêm spinner trước khi stream
+        spinner = AnimatedSpinner("⠋", classes="spinner")
+        spinner.styles.width = 1
+        spinner.styles.height = 1
+        spinner.styles.color = "white"
+        spinner.styles.offset = (0, 0)  # Bottom-left relative to container
+        chat_history.mount(spinner)
+        chat_history.scroll_end()
+
         async with http_client.stream(
             "POST", "/chat", params=params, json=json_payload
         ) as response:
@@ -35,9 +58,7 @@ async def send_chat_request(
 
             async for line in response.aiter_lines():
                 if line.startswith("data:"):
-                    content = line[
-                        len("data:") :
-                    ].strip()  # Giữ nguyên strip() giống cũ
+                    content = line[len("data:"):].strip()
                     if not content:
                         continue
                     try:
@@ -80,9 +101,13 @@ async def send_chat_request(
                             chat_history.mount(ai_response_md)
                         ai_response_md.update(accumulated_content)
                         chat_history.scroll_end()
+            # Xóa spinner sau khi stream xong
+            spinner.remove()
             return conversation_id
 
     except httpx.HTTPStatusError as e:
+        # Xóa spinner nếu lỗi
+        spinner.remove()
         chat_history.mount(
             Static(
                 f"[bold red]Lỗi API {e.response.status_code}: {e.response.text}[/red]"
@@ -92,6 +117,8 @@ async def send_chat_request(
             return "auth_error"
         return None
     except httpx.ConnectError:
+        # Xóa spinner nếu lỗi kết nối
+        spinner.remove()
         chat_history.mount(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/bold red]")
         )
@@ -138,7 +165,7 @@ async def load_conversation_history(
             if msg["role"] == "user":
                 chat_history.mount(Static(f">>> {msg['content']}"))
             else:
-                chat_history.mount(Markdown(msg["content"]))
+                chat_history.mount(Markdown(msg['content']))
         chat_history.scroll_end()
         chat_history.mount(
             Static(f"Bạn đang ở trong cuộc hội thoại [bold cyan]#{conv_id}[/].")

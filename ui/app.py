@@ -118,13 +118,13 @@ class FourTAIApp(App):
             help_text = """[bold][#58A6FF]📚 HƯỚNG DẪN SỬ DỤNG 4T AI[/bold]
 
 [#58A6FF]Các lệnh có sẵn:[/]
-> [bold][#58A6FF]/new[/]: Bắt đầu một cuộc hội thoại mới 🆕
-> [bold][#58A6FF]/history[/]: Xem danh sách các cuộc hội thoại đã có 📜
-> [bold][#58A6FF]/load <id>[/]: Tải lại lịch sử của một cuộc hội thoại 📂
-> [bold][#58A6FF]/file <path>[/]: Đính kèm một file vào tin nhắn tiếp theo 📎
-> [bold][#58A6FF]/clearfile[/]: Gỡ file đã đính kèm 🗑️
-> [bold][#58A6FF]/clear[/]: Xóa trắng màn hình chat hiện tại 🧹
-> [bold][#58A6FF]/logout[/]: Xóa token đã lưu và thoát 🚪
+[bold][#58A6FF]/new[/]: Bắt đầu một cuộc hội thoại mới 🆕
+[bold][#58A6FF]/history[/]: Xem danh sách các cuộc hội thoại đã có 📜
+[bold][#58A6FF]/load <id>[/]: Tải lại lịch sử của một cuộc hội thoại 📂
+[bold][#58A6FF]/file <path>[/]: Đính kèm một file vào tin nhắn tiếp theo 📎
+[bold][#58A6FF]/clearfile[/]: Gỡ file đã đính kèm 🗑️
+[bold][#58A6FF]/clear[/]: Xóa trắng màn hình chat hiện tại 🧹
+[bold][#58A6FF]/logout[/]: Xóa token đã lưu và thoát 🚪
 """
             chat_history.mount(Static(help_text, classes="help-box"))
             chat_history.scroll_end()
