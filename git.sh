@@ -1,38 +1,17 @@
 #!/bin/bash
 
-# git-smart.sh - Git workflow thông minh
+# git-smart.sh - Git workflow thông minh (KHÔNG manual config)
 # Sử dụng: ./git-smart.sh [commit_message]
 
 set -e  # Dừng nếu có lỗi
 
-CONFIG_FILE="$HOME/.gitconfig-smart"
 REPO_NAME=$(basename "$PWD")
 REMOTE="origin"
 BRANCH_MAIN="main"
 
-# 1. TẠO CONFIG GIT
+# 1. SKIP CONFIG - SỬ DỤNG GIT DEFAULT
 setup_config() {
-    if [[ ! -f "$CONFIG_FILE" ]]; then
-        cat > "$CONFIG_FILE" << 'EOF'
-[user]
-    name = Your Name
-    email = your.email@example.com
-[core]
-    autocrlf = input
-    editor = vim
-[alias]
-    s = status
-    co = checkout
-    br = branch
-    cm = commit -m
-    ps = push
-    pl = pull
-[push]
-    default = simple
-EOF
-        git config --global includeIf "gitdir:$PWD/" "$CONFIG_FILE"
-        echo "✅ Config git local đã tạo"
-    fi
+    echo "⏭️  Skip manual config - dùng Git default"
 }
 
 # 2. TẠO REPOSITORY NẾU CHƯA CÓ
@@ -59,14 +38,24 @@ do_commit() {
     fi
 }
 
-# 4. PUSH
+# 4. PUSH (TỰ ĐỘNG ADD REMOTE NẾU CHƯA CÓ)
 do_push() {
-    if git remote | grep -q "$REMOTE"; then
-        git push -u $REMOTE $BRANCH_MAIN
-        echo "✅ Đã push lên $REMOTE/$BRANCH_MAIN"
-    else
-        echo "⚠️  Chưa có remote. Thêm bằng: git remote add origin <url>"
+    current_branch=$(git branch --show-current)
+
+    if ! git remote | grep -q "$REMOTE"; then
+        echo "❓ Chưa có remote. Nhập URL GitHub (Enter để skip):"
+        read -r remote_url
+        if [[ -n "$remote_url" ]]; then
+            git remote add $REMOTE "$remote_url"
+            echo "✅ Đã thêm remote: $remote_url"
+        else
+            echo "⚠️  Skip push (chưa có remote)"
+            return
+        fi
     fi
+
+    git push -u $REMOTE $current_branch
+    echo "✅ Đã push lên $REMOTE/$current_branch"
 }
 
 # 5. TẠO BRANCH
