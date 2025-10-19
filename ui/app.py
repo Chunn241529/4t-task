@@ -94,7 +94,8 @@ class FourTAIApp(App):
 
     async def on_button_pressed(self, event: Button.Pressed) -> None:
         if event.button.id == "login-web-button":
-            webbrowser.open("https://4bhq158p-8000.asse.devtunnels.ms/")
+             url_open= os.getenv("API_URL", "https://living-tortoise-polite.ngrok-free.app")
+             webbrowser.open(url_open)
             # self.mount_info_log("[yellow]Đã mở trình duyệt. Vui lòng đăng nhập và dán token từ web.[/yellow]")
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
@@ -105,10 +106,21 @@ class FourTAIApp(App):
                 self.mount_info_log("[red]Token không được để trống.[/red]")
                 return
             try:
+                # Tạo thư mục chứa TOKEN_FILE_PATH nếu chưa tồn tại
+                token_dir = os.path.dirname(TOKEN_FILE_PATH)
+                if token_dir:
+                    os.makedirs(token_dir, exist_ok=True)
                 with open(TOKEN_FILE_PATH, "w") as f:
                     f.write(token)
+            except PermissionError as e:
+                self.mount_info_log(f"[red]Lỗi quyền truy cập: Không thể ghi file token tại {TOKEN_FILE_PATH}. Vui lòng kiểm tra quyền thư mục.[/red]")
+                return
+            except OSError as e:
+                self.mount_info_log(f"[red]Lỗi khi lưu token tại {TOKEN_FILE_PATH}: {e}[/red]")
+                return
             except Exception as e:
-                self.mount_info_log(f"[red]Không thể lưu token: {e}[/red]")
+                self.mount_info_log(f"[red]Lỗi không xác định khi lưu token: {e}[/red]")
+                return
             await self.perform_login(token)
         elif event.input.id == "chat-input":
             user_message = event.value.strip()

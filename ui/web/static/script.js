@@ -9,7 +9,7 @@ class AIAssistantLoginForm {
         this.tokenWidget = document.getElementById('tokenWidget');
         this.tokenValue = document.getElementById('tokenValue');
         this.socialButtons = document.querySelectorAll('.social-neural');
-        this.API_BASE_URL = 'https://4bhq158p-8000.asse.devtunnels.ms'; // Change to your API URL
+        this.API_BASE_URL = 'https://living-tortoise-polite.ngrok-free.app'; // Change to your API URL
         this.deviceId = this.generateDeviceId();
         this.userId = null;
         this.authCode = new URLSearchParams(window.location.search).get('code');
