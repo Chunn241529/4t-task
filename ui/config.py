@@ -1,4 +1,21 @@
 import os
+import platform
 
-API_BASE_URL: str = os.getenv("API_URL", "https://4bhq158p-8000.asse.devtunnels.ms")
-TOKEN_FILE_PATH: str = os.path.expanduser("~/.4t_task_token")
+# API Base URL
+API_BASE_URL: str = os.getenv("API_URL", "https://living-tortoise-polite.ngrok-free.app")
+
+# Hàm lấy thư mục cấu hình phù hợp theo hệ điều hành
+def get_config_dir() -> str:
+    system = platform.system()
+    home = os.path.expanduser("~")  # Lấy thư mục home của người dùng
+
+    if system == "Windows":
+        # Trên Windows, sử dụng AppData\Local hoặc AppData\Roaming
+        config_dir = os.getenv("LOCALAPPDATA", os.path.join(home, "AppData", "Local"))
+        return os.path.join(config_dir, "4t_task")
+    else:
+        # Trên Linux/macOS, sử dụng ~/.config/
+        return os.path.join(home, ".config", "4t_task")
+
+# Đường dẫn tới file token
+TOKEN_FILE_PATH: str = os.path.join(get_config_dir(), ".4t_task_token")
