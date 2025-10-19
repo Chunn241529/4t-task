@@ -6,9 +6,11 @@ from textual.widgets import Static, Markdown
 from textual.containers import ScrollableContainer
 from textual.reactive import reactive
 
+
 class AnimatedSpinner(Static):
     """A custom Static widget that animates a spinner using a sequence of characters."""
-    spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+
+    spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
     current_index = reactive(0)
 
     def on_mount(self) -> None:
@@ -19,6 +21,7 @@ class AnimatedSpinner(Static):
         """Cycle through spinner characters."""
         self.current_index = (self.current_index + 1) % len(self.spinner_chars)
         self.update(self.spinner_chars[self.current_index])
+
 
 async def send_chat_request(
     http_client: httpx.AsyncClient,
@@ -40,25 +43,21 @@ async def send_chat_request(
     params = {"conversation_id": conversation_id} if conversation_id else {}
 
     try:
-        # Thêm spinner trước khi stream
-        spinner = AnimatedSpinner("⠋", classes="spinner")
-        spinner.styles.width = 1
-        spinner.styles.height = 1
-        spinner.styles.color = "white"
-        spinner.styles.offset = (0, 0)  # Bottom-left relative to container
-        chat_history.mount(spinner)
-        chat_history.scroll_end()
+
+        # Initialize variables
+        accumulated_content = ""
+        ai_response_md = None
+        spinner = None
+        spinner_container = None
 
         async with http_client.stream(
             "POST", "/chat", params=params, json=json_payload
         ) as response:
             response.raise_for_status()
-            accumulated_content = ""
-            ai_response_md = None
 
             async for line in response.aiter_lines():
                 if line.startswith("data:"):
-                    content = line[len("data:"):].strip()
+                    content = line[len("data:") :].strip()
                     if not content:
                         continue
                     try:
@@ -71,6 +70,9 @@ async def send_chat_request(
                                 ai_response_md.update(accumulated_content)
                             break
                         elif data_chunk.get("error"):
+                            # Mount error message and ensure spinner is removed if it exists
+                            if spinner_container:
+                                spinner_container.remove()
                             chat_history.mount(
                                 Static(
                                     f"[bold red]Lỗi Stream: {data_chunk['error']}[/bold red]"
@@ -85,9 +87,25 @@ async def send_chat_request(
                             )
                             accumulated_content += decoded_content
                             if not ai_response_md:
+                                # Mount response first
                                 chat_history.mount(Static(""))
                                 ai_response_md = Markdown("")
                                 chat_history.mount(ai_response_md)
+                                # Mount spinner below response
+                                spinner = AnimatedSpinner("⠋", classes="spinner")
+                                spinner.styles.width = 1
+                                spinner.styles.height = 1
+                                spinner.styles.color = "white"
+                                spinner_container = Static("")
+                                spinner_container.styles.display = "block"
+                                spinner_container.styles.padding = (
+                                    0,
+                                    0,
+                                    0,
+                                    2,
+                                )  # Slight left padding for alignment
+                                chat_history.mount(spinner_container)
+                                spinner_container.mount(spinner)
                             ai_response_md.update(accumulated_content)
                             chat_history.scroll_end()
                     except json.JSONDecodeError:
@@ -96,18 +114,36 @@ async def send_chat_request(
                         )
                         accumulated_content += decoded_content
                         if not ai_response_md:
+                            # Mount response first
                             chat_history.mount(Static(""))
                             ai_response_md = Markdown("")
                             chat_history.mount(ai_response_md)
+                            # Mount spinner below response
+                            spinner = AnimatedSpinner("⠋", classes="spinner")
+                            spinner.styles.width = 1
+                            spinner.styles.height = 1
+                            spinner.styles.color = "white"
+                            spinner_container = Static("")
+                            spinner_container.styles.display = "block"
+                            spinner_container.styles.padding = (
+                                0,
+                                0,
+                                0,
+                                2,
+                            )  # Slight left padding for alignment
+                            chat_history.mount(spinner_container)
+                            spinner_container.mount(spinner)
                         ai_response_md.update(accumulated_content)
                         chat_history.scroll_end()
-            # Xóa spinner sau khi stream xong
-            spinner.remove()
+            # Xóa spinner và container sau khi stream xong
+            if spinner_container:
+                spinner_container.remove()
             return conversation_id
 
     except httpx.HTTPStatusError as e:
-        # Xóa spinner nếu lỗi
-        spinner.remove()
+        # Xóa spinner và container nếu lỗi
+        if spinner_container:
+            spinner_container.remove()
         chat_history.mount(
             Static(
                 f"[bold red]Lỗi API {e.response.status_code}: {e.response.text}[/red]"
@@ -117,8 +153,9 @@ async def send_chat_request(
             return "auth_error"
         return None
     except httpx.ConnectError:
-        # Xóa spinner nếu lỗi kết nối
-        spinner.remove()
+        # Xóa spinner và container nếu lỗi kết nối
+        if spinner_container:
+            spinner_container.remove()
         chat_history.mount(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/bold red]")
         )
@@ -165,7 +202,7 @@ async def load_conversation_history(
             if msg["role"] == "user":
                 chat_history.mount(Static(f">>> {msg['content']}"))
             else:
-                chat_history.mount(Markdown(msg['content']))
+                chat_history.mount(Markdown(msg["content"]))
         chat_history.scroll_end()
         chat_history.mount(
             Static(f"Bạn đang ở trong cuộc hội thoại [bold cyan]#{conv_id}[/].")
