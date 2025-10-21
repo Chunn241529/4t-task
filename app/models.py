@@ -10,6 +10,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     verified_devices = Column(JSON, nullable=False, default=[])
+    gender = Column(String, nullable=True)  # Thêm cột gender, có thể null
 
 class Task(Base):
     __tablename__ = "tasks"

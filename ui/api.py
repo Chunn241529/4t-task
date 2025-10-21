@@ -30,7 +30,7 @@ async def send_chat_request(
     attached_file_path: Optional[str],
     chat_history: ScrollableContainer,
 ) -> Optional[int]:
-    """Gửi yêu cầu chat đến API và hiển thị phản hồi."""
+    """Gửi yêu cầu chat đến API và hiển thị phản hồi với hai spinner."""
     json_payload = {"message": {"message": message}}
     if attached_file_path:
         try:
@@ -43,12 +43,24 @@ async def send_chat_request(
     params = {"conversation_id": conversation_id} if conversation_id else {}
 
     try:
-
-        # Initialize variables
+        # Khởi tạo biến
         accumulated_content = ""
         ai_response_md = None
-        spinner = None
-        spinner_container = None
+        initial_spinner = None
+        initial_spinner_container = None
+        response_spinner = None
+        response_spinner_container = None
+
+        # Hiển thị spinner ban đầu khi gửi yêu cầu
+        initial_spinner = AnimatedSpinner("⠋", classes="spinner")
+        initial_spinner.styles.width = 1
+        initial_spinner.styles.height = 1
+        initial_spinner.styles.color = "white"
+        initial_spinner_container = Static("")
+        initial_spinner_container.styles.display = "block"
+        initial_spinner_container.styles.padding = (0, 0, 0, 2)
+        chat_history.mount(initial_spinner_container)
+        initial_spinner_container.mount(initial_spinner)
 
         async with http_client.stream(
             "POST", "/chat", params=params, json=json_payload
@@ -66,13 +78,17 @@ async def send_chat_request(
                             conversation_id = data_chunk["conversation_id"]
                             continue
                         elif data_chunk.get("done"):
+                            # Không xóa spinner ngay, đợi hiển thị hoàn tất
                             if accumulated_content and ai_response_md:
                                 ai_response_md.update(accumulated_content)
+                                chat_history.scroll_end()
                             break
                         elif data_chunk.get("error"):
-                            # Mount error message and ensure spinner is removed if it exists
-                            if spinner_container:
-                                spinner_container.remove()
+                            # Xóa cả hai spinner nếu có lỗi
+                            if initial_spinner_container:
+                                initial_spinner_container.remove()
+                            if response_spinner_container:
+                                response_spinner_container.remove()
                             chat_history.mount(
                                 Static(
                                     f"[bold red]Lỗi Stream: {data_chunk['error']}[/bold red]"
@@ -87,25 +103,24 @@ async def send_chat_request(
                             )
                             accumulated_content += decoded_content
                             if not ai_response_md:
-                                # Mount response first
+                                # Xóa spinner ban đầu khi phản hồi bắt đầu
+                                if initial_spinner_container:
+                                    initial_spinner_container.remove()
+                                    initial_spinner_container = None
+                                # Hiển thị phản hồi
                                 chat_history.mount(Static(""))
                                 ai_response_md = Markdown("")
                                 chat_history.mount(ai_response_md)
-                                # Mount spinner below response
-                                spinner = AnimatedSpinner("⠋", classes="spinner")
-                                spinner.styles.width = 1
-                                spinner.styles.height = 1
-                                spinner.styles.color = "white"
-                                spinner_container = Static("")
-                                spinner_container.styles.display = "block"
-                                spinner_container.styles.padding = (
-                                    0,
-                                    0,
-                                    0,
-                                    2,
-                                )  # Slight left padding for alignment
-                                chat_history.mount(spinner_container)
-                                spinner_container.mount(spinner)
+                                # Hiển thị spinner phản hồi
+                                response_spinner = AnimatedSpinner("⠋", classes="spinner")
+                                response_spinner.styles.width = 1
+                                response_spinner.styles.height = 1
+                                response_spinner.styles.color = "white"
+                                response_spinner_container = Static("")
+                                response_spinner_container.styles.display = "block"
+                                response_spinner_container.styles.padding = (0, 0, 0, 2)
+                                chat_history.mount(response_spinner_container)
+                                response_spinner_container.mount(response_spinner)
                             ai_response_md.update(accumulated_content)
                             chat_history.scroll_end()
                     except json.JSONDecodeError:
@@ -114,36 +129,44 @@ async def send_chat_request(
                         )
                         accumulated_content += decoded_content
                         if not ai_response_md:
-                            # Mount response first
+                            # Xóa spinner ban đầu khi phản hồi bắt đầu
+                            if initial_spinner_container:
+                                initial_spinner_container.remove()
+                                initial_spinner_container = None
+                            # Hiển thị phản hồi
                             chat_history.mount(Static(""))
                             ai_response_md = Markdown("")
                             chat_history.mount(ai_response_md)
-                            # Mount spinner below response
-                            spinner = AnimatedSpinner("⠋", classes="spinner")
-                            spinner.styles.width = 1
-                            spinner.styles.height = 1
-                            spinner.styles.color = "white"
-                            spinner_container = Static("")
-                            spinner_container.styles.display = "block"
-                            spinner_container.styles.padding = (
-                                0,
-                                0,
-                                0,
-                                2,
-                            )  # Slight left padding for alignment
-                            chat_history.mount(spinner_container)
-                            spinner_container.mount(spinner)
+                            # Hiển thị spinner phản hồi
+                            response_spinner = AnimatedSpinner("⠋", classes="spinner")
+                            response_spinner.styles.width = 1
+                            response_spinner.styles.height = 1
+                            response_spinner.styles.color = "white"
+                            response_spinner_container = Static("")
+                            response_spinner_container.styles.display = "block"
+                            response_spinner_container.styles.padding = (0, 0, 0, 2)
+                            chat_history.mount(response_spinner_container)
+                            response_spinner_container.mount(response_spinner)
                         ai_response_md.update(accumulated_content)
                         chat_history.scroll_end()
-            # Xóa spinner và container sau khi stream xong
-            if spinner_container:
-                spinner_container.remove()
-            return conversation_id
+
+        # Sau khi luồng kết thúc, đảm bảo nội dung được hiển thị hoàn toàn
+        if ai_response_md and accumulated_content:
+            ai_response_md.update(accumulated_content)
+            chat_history.scroll_end()
+
+        # Xóa spinner phản hồi sau khi nội dung được hiển thị xong
+        if response_spinner_container:
+            response_spinner_container.remove()
+
+        return conversation_id
 
     except httpx.HTTPStatusError as e:
-        # Xóa spinner và container nếu lỗi
-        if spinner_container:
-            spinner_container.remove()
+        # Xóa cả hai spinner nếu có lỗi
+        if initial_spinner_container:
+            initial_spinner_container.remove()
+        if response_spinner_container:
+            response_spinner_container.remove()
         chat_history.mount(
             Static(
                 f"[bold red]Lỗi API {e.response.status_code}: {e.response.text}[/red]"
@@ -153,9 +176,11 @@ async def send_chat_request(
             return "auth_error"
         return None
     except httpx.ConnectError:
-        # Xóa spinner và container nếu lỗi kết nối
-        if spinner_container:
-            spinner_container.remove()
+        # Xóa cả hai spinner nếu có lỗi kết nối
+        if initial_spinner_container:
+            initial_spinner_container.remove()
+        if response_spinner_container:
+            response_spinner_container.remove()
         chat_history.mount(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/bold red]")
         )
@@ -187,7 +212,7 @@ async def fetch_conversations(
 
 async def load_conversation_history(
     http_client: httpx.AsyncClient, conv_id: int, chat_history: ScrollableContainer
-) -> None:
+) -> bool:  # Thêm kiểu trả về bool để báo hiệu thành công/thất bại
     """Tải lịch sử cuộc hội thoại từ API."""
     chat_history.query("*").remove()
     chat_history.mount(
@@ -207,5 +232,17 @@ async def load_conversation_history(
         chat_history.mount(
             Static(f"Bạn đang ở trong cuộc hội thoại [bold cyan]#{conv_id}[/].")
         )
+        return True  # Tải thành côngset
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            chat_history.mount(
+                Static(f"[red]Conversation #{conv_id} không tồn tại.[/red]")
+            )
+        else:
+            chat_history.mount(
+                Static(f"[red]Lỗi khi tải lịch sử: {e.response.status_code} - {e.response.text}[/red]")
+            )
+        return False  # Tải thất bại
     except Exception as e:
-        chat_history.mount(Static(f"[red]Lỗi tải lịch sử chat: {e}[/red]"))
+        chat_history.mount(Static(f"[red]Lỗi khi tải lịch sử: {e}[/red]"))
+        return False  # Tải thất bại
