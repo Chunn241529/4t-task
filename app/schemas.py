@@ -6,6 +6,7 @@ class UserRegister(BaseModel):
     username: str
     email: str
     password: str
+    gender: Optional[str]  # Thêm trường gender, có thể là "male", "female", hoặc None
 
 class UserLogin(BaseModel):
     username_or_email: str
@@ -15,6 +16,10 @@ class UserLogin(BaseModel):
 class VerifyCode(BaseModel):
     code: str
     device_id: str
+
+class ResetPassword(BaseModel):
+    reset_token: str
+    new_password: str
 
 class TaskPrompt(BaseModel):
     prompt: str

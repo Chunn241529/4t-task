@@ -9,7 +9,7 @@ class AIAssistantLoginForm {
         this.tokenWidget = document.getElementById('tokenWidget');
         this.tokenValue = document.getElementById('tokenValue');
         this.socialButtons = document.querySelectorAll('.social-neural');
-        this.API_BASE_URL = 'https://living-tortoise-polite.ngrok-free.app'; // Change to your API URL
+        this.API_BASE_URL = 'https://living-tortoise-polite.ngrok-free.app';
         this.deviceId = this.generateDeviceId();
         this.userId = null;
         this.authCode = new URLSearchParams(window.location.search).get('code');
@@ -19,7 +19,6 @@ class AIAssistantLoginForm {
     }
 
     init() {
-        // Add debugging to check if required elements exist
         console.log('Initializing form, checking DOM elements...');
         console.log('loginForm:', document.getElementById('loginForm'));
         console.log('neural-social:', document.querySelector('.neural-social'));
@@ -93,7 +92,7 @@ class AIAssistantLoginForm {
     validateUsernameOrEmail() {
         const value = this.emailInput.value.trim();
         if (!value) {
-            this.showError('email', 'Username or email required');
+            this.showError('email', 'Không được để trống username hoặc email');
             return false;
         }
         this.clearError('email');
@@ -103,11 +102,11 @@ class AIAssistantLoginForm {
     validatePassword() {
         const password = this.passwordInput.value;
         if (!password) {
-            this.showError('password', 'Security key required for access');
+            this.showError('password', 'Không được để trống mật khẩu');
             return false;
         }
         if (password.length < 6) {
-            this.showError('password', 'Security key must be at least 6 characters');
+            this.showError('password', 'Mật khẩu phải có 6 kí tự trở lên');
             return false;
         }
         this.clearError('password');
@@ -127,9 +126,7 @@ class AIAssistantLoginForm {
         const errorElement = document.getElementById(`${field}Error`);
         smartField.classList.remove('error');
         errorElement.classList.remove('show');
-        setTimeout(() => {
-            errorElement.textContent = '';
-        }, 200);
+        errorElement.textContent = ''; // Xóa ngay lập tức, nhưng lỗi từ server sẽ hiển thị lại nếu cần
     }
 
     async handleSubmit(e) {
@@ -152,7 +149,7 @@ class AIAssistantLoginForm {
             });
             const data = await response.json();
             if (!response.ok) {
-                throw new Error(data.detail || 'Neural connection failed');
+                throw new Error(data.detail || 'Sai tài khoản hoặc mật khẩu');
             }
             if (data.message === 'Verify needed') {
                 console.log('Verification needed, showing verification form...');
@@ -163,11 +160,11 @@ class AIAssistantLoginForm {
                 localStorage.setItem('user_id', this.userId || '');
                 this.showNeuralSuccess(data.token);
             } else {
-                throw new Error('Invalid response from server');
+                throw new Error('Sai tài khoản hoặc mật khẩu');
             }
         } catch (error) {
             console.error('Login failed:', error);
-            this.showError('email', error.message || 'Login failed. Please try again.');
+            this.showError('password', 'Sai tài khoản hoặc mật khẩu');
             this.setLoading(false);
         }
     }
@@ -367,8 +364,22 @@ class AIAssistantLoginForm {
         }, 300);
     }
 
-    async completeOAuth(token) {
-        this.showNeuralSuccess(token);
+    async handleOAuthRedirect() {
+        console.log('Handling OAuth redirect...');
+        try {
+            const response = await fetch(`${this.API_BASE_URL}/auth/token?code=${this.authCode}&state=${this.state}`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                throw new Error(data.detail || 'OAuth token exchange failed');
+            }
+            this.showNeuralSuccess(data.token);
+        } catch (error) {
+            console.error('OAuth redirect failed:', error);
+            this.showError('password', 'Sai tài khoản hoặc mật khẩu');
+        }
     }
 }
 

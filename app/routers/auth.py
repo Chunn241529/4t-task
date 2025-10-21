@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import User
-from app.schemas import UserRegister, UserLogin, VerifyCode
+from app.schemas import UserRegister, UserLogin, VerifyCode, ResetPassword
 from app.utils import (
     hash_password,
     verify_password,
@@ -10,9 +10,11 @@ from app.utils import (
     send_email,
     create_jwt,
     verify_jwt,
+    create_reset_token
 )
 from typing import Dict, List
 from datetime import timedelta, datetime
+from pydantic import BaseModel
 import logging
 import secrets
 
@@ -21,6 +23,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 verify_codes: Dict[str, str] = {}  # Lưu mã xác minh email
 auth_codes: Dict[str, dict] = {}  # Lưu authorization code: {code: {device_id, user_id, expires}}
+reset_tokens: Dict[str, dict] = {}  # Lưu reset token: {token: {user_id, expires}}
+
+# Schema cho forgetpw
+class ForgetPasswordRequest(BaseModel):
+    email: str
 
 @router.post("/register")
 def register(user: UserRegister, db: Session = Depends(get_db)):
@@ -32,15 +39,20 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     if existing:
         raise HTTPException(400, "User exists")
     hashed = hash_password(user.password)
-    new_user = User(username=user.username, email=user.email, password_hash=hashed)
+    new_user = User(
+        username=user.username,
+        email=user.email,
+        password_hash=hashed,
+        gender=user.gender  # Lưu gender từ UserRegister
+    )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     code = generate_verify_code()
     verify_codes[user.email] = code
-    send_email(user.email, code)
-    logger.debug(f"Registered user: {user.username}, email: {user.email}, code: {code}")
-    return {"message": "Registered, check email for code"}
+    send_email(user.email, code, template_type="verification")
+    logger.debug(f"Registered user: {user.username}, email: {user.email}, code: {code}, gender: {user.gender}")
+    return {"message": "Registered, check email for code", "user_id": new_user.id}
 
 @router.post("/login")
 def login(user: UserLogin, db: Session = Depends(get_db)):
@@ -74,13 +86,13 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
 
     code = generate_verify_code()
     verify_codes[db_user.email] = code
-    send_email(db_user.email, code)
+    send_email(db_user.email, code, template_type="verification")
     logger.debug(f"Verification code sent to {db_user.email} for user_id {db_user.id}: {code}")
     return {"message": "Verify needed", "user_id": db_user.id}
 
 @router.post("/verify")
 def verify(verify: VerifyCode, user_id: int = Query(...), db: Session = Depends(get_db)):
-    logger.debug(f"Verify request: user_id={user_id}, code={verify.code}, device_id={verify.device_id}")
+    logger.debug(f"Verify request: user_id={user_id}, code={verify.code}, device_id: {verify.device_id}")
     db_user = db.query(User).filter(User.id == user_id).first()
     if not db_user:
         logger.error(f"User not found for user_id: {user_id}")
@@ -110,7 +122,6 @@ def verify(verify: VerifyCode, user_id: int = Query(...), db: Session = Depends(
         del verify_codes[db_user.email]
         logger.debug(f"Removed verification code for email: {db_user.email}")
 
-    # Cập nhật auth_codes nếu đang trong OAuth flow
     for auth_code, data in auth_codes.items():
         if data["device_id"] == device_id_to_add and data["user_id"] is None:
             data["user_id"] = db_user.id
@@ -159,7 +170,7 @@ def authorize(device_id: str = Query(...), redirect_uri: str = Query(...), state
         "expires": datetime.utcnow() + timedelta(minutes=10),  # Code hết hạn sau 10 phút
         "state": state
     }
-    login_url = f"http://localhost:8000/?code={auth_code}&state={state}&redirect_uri={redirect_uri}"
+    login_url = f"https://living-tortoise-polite.ngrok-free.app/?code={auth_code}&state={state}&redirect_uri={redirect_uri}"
     logger.debug(f"Generated login_url: {login_url}")
     return {"login_url": login_url}
 
@@ -199,3 +210,49 @@ def exchange_token(code: str = Query(...), state: str = Query(...), db: Session 
     del auth_codes[code]  # Xóa code sau khi sử dụng
     logger.debug(f"Token issued for user_id: {user_id}, device_id: {device_id}, token: {token}")
     return {"token": token}
+
+@router.post("/forgetpw")
+def forget_password(request: ForgetPasswordRequest, db: Session = Depends(get_db)):
+    """
+    Endpoint để yêu cầu đặt lại mật khẩu và gửi email chứa link reset.
+    """
+    logger.debug(f"Forget password request for email: {request.email}")
+    db_user = db.query(User).filter(User.email == request.email).first()
+    if not db_user:
+        logger.error(f"User not found for email: {request.email}")
+        raise HTTPException(status_code=404, detail="User not found")
+
+    reset_token = create_reset_token(db_user.id)
+    reset_tokens[reset_token] = {
+        "user_id": db_user.id,
+        "expires": datetime.utcnow() + timedelta(hours=1)
+    }
+    send_email(db_user.email, reset_token, template_type="reset_password")
+    logger.debug(f"Reset password link sent to {db_user.email} for user_id {db_user.id}")
+    return {"message": "Reset password link sent to your email"}
+
+@router.post("/reset-password")
+def reset_password(reset: ResetPassword, db: Session = Depends(get_db)):
+    """
+    Endpoint để đặt lại mật khẩu bằng reset token.
+    """
+    logger.debug(f"Reset password request for token: {reset.reset_token}")
+    token_data = reset_tokens.get(reset.reset_token)
+    if not token_data or token_data["expires"] < datetime.utcnow():
+        logger.error(f"Invalid or expired reset token: {reset.reset_token}")
+        raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+    user_id = token_data["user_id"]
+    db_user = db.query(User).filter(User.id == user_id).first()
+    if not db_user:
+        logger.error(f"User not found for user_id: {user_id}")
+        raise HTTPException(status_code=404, detail="User not found")
+
+    hashed_password = hash_password(reset.new_password)
+    db_user.password_hash = hashed_password
+    db.commit()
+    db.refresh(db_user)
+
+    del reset_tokens[reset.reset_token]
+    logger.debug(f"Password reset successful for user_id: {user_id}, token removed")
+    return {"message": "Password reset successfully"}
