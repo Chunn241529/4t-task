@@ -5,6 +5,7 @@ from typing import Optional
 from textual.widgets import Static, Markdown
 from textual.containers import ScrollableContainer
 from textual.reactive import reactive
+import asyncio
 
 
 class AnimatedSpinner(Static):
@@ -30,7 +31,7 @@ async def send_chat_request(
     attached_file_path: Optional[str],
     chat_history: ScrollableContainer,
 ) -> Optional[int]:
-    """Gửi yêu cầu chat đến API và hiển thị phản hồi với hai spinner."""
+    """Gửi yêu cầu chat đến API và hiển thị phản hồi mượt mà với spinner."""
     json_payload = {"message": {"message": message}}
     if attached_file_path:
         try:
@@ -78,10 +79,11 @@ async def send_chat_request(
                             conversation_id = data_chunk["conversation_id"]
                             continue
                         elif data_chunk.get("done"):
-                            # Không xóa spinner ngay, đợi hiển thị hoàn tất
-                            if accumulated_content and ai_response_md:
+                            # Đợi UI render nội dung cuối cùng
+                            if ai_response_md and accumulated_content:
                                 ai_response_md.update(accumulated_content)
                                 chat_history.scroll_end()
+                            await asyncio.sleep(0.1)  # Đợi UI ổn định
                             break
                         elif data_chunk.get("error"):
                             # Xóa cả hai spinner nếu có lỗi
@@ -121,8 +123,10 @@ async def send_chat_request(
                                 response_spinner_container.styles.padding = (0, 0, 0, 2)
                                 chat_history.mount(response_spinner_container)
                                 response_spinner_container.mount(response_spinner)
+                            # Cập nhật nội dung tích lũy
                             ai_response_md.update(accumulated_content)
                             chat_history.scroll_end()
+                            await asyncio.sleep(0.05)  # Đợi UI render
                     except json.JSONDecodeError:
                         decoded_content = content.encode().decode(
                             "utf-8", errors="replace"
@@ -147,15 +151,18 @@ async def send_chat_request(
                             response_spinner_container.styles.padding = (0, 0, 0, 2)
                             chat_history.mount(response_spinner_container)
                             response_spinner_container.mount(response_spinner)
+                        # Cập nhật nội dung tích lũy
                         ai_response_md.update(accumulated_content)
                         chat_history.scroll_end()
+                        await asyncio.sleep(0.05)  # Đợi UI render
 
-        # Sau khi luồng kết thúc, đảm bảo nội dung được hiển thị hoàn toàn
+        # Đảm bảo nội dung cuối cùng được hiển thị
         if ai_response_md and accumulated_content:
             ai_response_md.update(accumulated_content)
             chat_history.scroll_end()
+            await asyncio.sleep(0.1)  # Đợi UI ổn định
 
-        # Xóa spinner phản hồi sau khi nội dung được hiển thị xong
+        # Xóa spinner phản hồi sau khi render hoàn tất
         if response_spinner_container:
             response_spinner_container.remove()
 

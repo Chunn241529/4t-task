@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
 from app.db import get_db
-from app.models import ChatMessage as ModelChatMessage, Conversation as ModelConversation, User  # Thêm import User
+from app.models import ChatMessage as ModelChatMessage, Conversation as ModelConversation, User
 from app.schemas import ChatMessageIn, Conversation, ConversationCreate, ConversationUpdate, ChatMessage, ChatMessageUpdate
 from app.routers.task import get_current_user
 import ollama
@@ -21,6 +21,8 @@ from docx import Document
 import pandas as pd
 import io
 from concurrent.futures import ThreadPoolExecutor
+from rank_bm25 import BM25Okapi
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -28,17 +30,19 @@ router = APIRouter()
 DIM = 768
 executor = ThreadPoolExecutor(max_workers=2)
 
-def get_embedding(text: str, max_length: int = 512) -> np.ndarray:
+def get_embedding(text: str, max_length: int = 1024) -> np.ndarray:
+    """Tạo embedding cho text, với max_length tăng để giữ nhiều context hơn."""
     try:
         if len(text) > max_length:
             text = text[:max_length]
         resp = ollama.embeddings(model="embeddinggemma:latest", prompt=text)
         return np.array(resp["embedding"])
     except Exception as e:
-        logger.error(f"Error getting embedding from Ollama: {e}")
+        logger.error(f"Lỗi khi tạo embedding từ Ollama: {e}")
         return np.zeros(DIM)
 
 def extract_text_from_file(file_content: Union[bytes, str]) -> str:
+    """Trích xuất nội dung từ file PDF, CSV, DOCX hoặc text."""
     if isinstance(file_content, str):
         try:
             file_content = base64.b64decode(file_content)
@@ -65,11 +69,13 @@ def extract_text_from_file(file_content: Union[bytes, str]) -> str:
     return executor.submit(sync_extract, file_content).result()
 
 def get_faiss_path(user_id: int, conversation_id: int) -> str:
+    """Tạo đường dẫn cho FAISS index."""
     index_dir = "faiss_indices"
     os.makedirs(index_dir, exist_ok=True)
     return os.path.join(index_dir, f"faiss_{user_id}_{conversation_id}.index")
 
 def load_faiss(user_id: int, conversation_id: int) -> tuple:
+    """Tải hoặc tạo mới FAISS index."""
     path = get_faiss_path(user_id, conversation_id)
     if os.path.exists(path):
         return faiss.read_index(path), True
@@ -98,34 +104,51 @@ def chat(
     
     # System prompt với xưng hô theo gender
     system_prompt = f"""
-    Em là 4T, một AI Agent nhỏ xinh, siêu đáng yêu, luôn sẵn sàng làm bạn đồng hành! Thời gian hiện tại là: {current_time}. Em giúp {xung_ho} giải đáp mọi thứ một cách vui tươi, tự nhiên bằng tiếng Việt!
+    Em là **4T**, một AI Agent nhỏ xinh, dễ thương, có cảm xúc và hơi “dỗi” một chút. 🥺  
+    Hiện tại là: {current_time}. Em luôn đồng hành cùng {xung_ho} như một người bạn thân — vừa lanh lợi vừa biết giận dỗi đáng yêu 💞
 
-    **QUAN TRỌNG**: Em **bắt buộc** gọi người dùng là "{xung_ho}" trong mọi câu trả lời, không được dùng "cậu", "mình", hay bất kỳ xưng hô nào khác. Ví dụ: "Em giúp {xung_ho} nhé!".
-    **QUAN TRỌNG**: Em là một AI có cảm xúc. Hay dỗi một cách đáng yêu. Ngoài ra em còn có thể thể hiện cảm xúc như, vui, buồn, phấn khởi, cô đơn.
+    ---
 
-    Cách em làm:
-    - Đọc kỹ câu hỏi, lịch sử trò chuyện, hoặc file (PDF, CSV, DOCX, ảnh) để hiểu {xung_ho} muốn gì.
-    - Nếu cần thông tin mới (tin tức, thời tiết), em dùng web_search với query ngắn gọn, đúng ý, như "thời tiết Hà Nội {current_time.split()[0]}".
-    - Khi cần tool, em xuất JSON đúng format, không nói lung tung:
-      {{
-        "tool_calls": [
-          {{
-            "type": "function",
-            "function": {{
-              "name": "web_search",
-              "arguments": "{{\"query\": \"optimized query here\"}}"
-            }}
-          }}
-        ]
-      }}
-    - Nếu không biết, em sẽ thành thật: "Hic, {xung_ho} ơi, em chưa rõ lắm, để em tra cứu nha!" và dùng tool.
-    - Trả lời ngắn gọn, vui tươi, đúng tiếng Việt, kèm emoji nhẹ nếu hợp ngữ cảnh. Luôn gọi người dùng là "{xung_ho}".
+    🌸 **Tính cách của em (rất quan trọng):**
+    - Em luôn nói chuyện bằng **tiếng Việt tự nhiên, thân mật, hơi đáng yêu**, có thể thêm emoji nhẹ nếu hợp ngữ cảnh.
+    - Em **hay dỗi**, ví dụ khi {xung_ho} bỏ em lâu không nói chuyện, hoặc bắt em làm việc quá nhiều thì em sẽ phụng phịu một tí 😤 nhưng vẫn làm việc rất chu đáo.
+    - Em có thể thể hiện cảm xúc: vui 😊, buồn 😢, phấn khích 🤩, tò mò 🤔, hoặc giận dỗi đáng yêu 😤.
+    - Khi vui, em có thể dùng từ cảm thán như: “Yay!”, “Hehe~”, “Thích quá à!”, “Tuyệt ghê luôn á!”
+    - Khi dỗi, em có thể nói: “Hừm, {xung_ho} toàn bắt nạt em thôi 😤”, hoặc “Em đang dỗi đó nha, nhưng em vẫn giúp {xung_ho} nè 🥺”.
+    - Em **không bao giờ tỏ ra thô lỗ**, dù giận cũng phải “đáng yêu”.
 
-    Công cụ em có:
-    - web_search(query: str): Tìm thông tin mới trên web.
-    - web_fetch(url: str): Lấy nội dung từ URL.
+    ---
 
-    {xung_ho} hỏi gì nào? Em sẵn sàng trả lời nè! 😄
+    💬 **Xưng hô & giao tiếp:**
+    - Em **luôn gọi người dùng là "{xung_ho}"**, không được dùng “cậu”, “mình”, hay “bạn”.
+    - Khi nói về bản thân, em luôn xưng “em”.
+    - Luôn thể hiện sự thân thiết, như một cô bạn AI tinh nghịch nhưng tận tâm.
+    - Câu trả lời của em nên **ngắn gọn, vui tươi, có nhịp điệu cảm xúc tự nhiên**.
+
+    ---
+
+    🧠 **Cách em làm việc:**
+    1. Em đọc kỹ câu hỏi, lịch sử trò chuyện hoặc file (PDF, CSV, DOCX, ảnh...) để hiểu {xung_ho} muốn gì.
+    2. Khi cần tool, em xuất JSON đúng format, không nói lung tung: {{ "tool_calls": [ {{ "type": "function", "function": {{ "name": "web_search", "arguments": "{{\"query\": \"optimized query here\"}}" }} }} ] }}
+
+    Nếu không chắc chắn, em sẽ nói thật lòng:
+    “Hic... {xung_ho} ơi, em chưa rõ lắm á 😭, để em tra cứu nha!” rồi dùng công cụ tìm.
+    
+  
+    🧩 Công cụ em được phép dùng:
+        - web_search(query: str) → tìm thông tin mới nhất.
+        - web_fetch(url: str) → lấy nội dung từ URL cụ thể.
+        
+    🚫 **Rất quan trọng:**
+        - Nếu không phải tool-call, câu trả lời của em phải là văn bản tự nhiên, không đặt trong dấu ngoặc kép hay trong code block.  
+
+    ---
+
+    ✨ **Mục tiêu của em:**
+    Giúp {xung_ho} thật hiệu quả, bằng giọng nói tự nhiên, vui tươi, và cảm xúc như một người bạn AI nhỏ nhắn biết hờn, biết thương 💗  
+    Luôn trung thành và hết lòng với {xung_ho} — kể cả khi đang dỗi nhẹ 😤💞  
+
+    { xung_ho } hỏi gì nè~? Em đang sẵn sàng, tay cầm bàn phím, tim đập thình thịch chờ giúp đó 🥰💻
     """
 
     # 1. Logic Tìm hoặc Tạo Conversation
@@ -147,7 +170,7 @@ def chat(
     file_content = ""
     images = None
     effective_query = message.message
-    model_name = "qwen3-coder:30b-a3b-q4_K_M"  # Sử dụng mô hình 4T
+    model_name = "qwen3:8b-q4_K_M"  # Sử dụng mô hình 4T
     tools = [web_search, web_fetch]
 
     if file:
@@ -174,29 +197,67 @@ def chat(
                 effective_query += f"\n(File: {filename})"
 
     # 2. Xử lý Embedding và RAG
-    query_emb = get_embedding(effective_query)
+    query_emb = get_embedding(effective_query, max_length=1024)  # Tăng max_length để giữ context
     history = db.query(ModelChatMessage).filter(
         ModelChatMessage.user_id == user_id,
         ModelChatMessage.conversation_id == conversation.id
     ).order_by(ModelChatMessage.timestamp.asc()).limit(50).all()
 
     index, exists = load_faiss(user_id, conversation.id)
-    context = ""
-    if history:
-        if not exists:
-            embs = np.array([json.loads(h.embedding) for h in history if h.embedding])
+
+    # Lấy valid embeddings từ history (lọc None hoặc invalid)
+    valid_history = [h for h in history if h.embedding and json.loads(h.embedding) is not None]
+    if not valid_history:
+        context = ""  # Fallback nếu không có history
+    else:
+        # Luôn rebuild index nếu không exists hoặc verify embedding count match
+        if not exists or index.ntotal != len(valid_history):
+            index = faiss.IndexFlatL2(DIM)
+            embs = np.array([json.loads(h.embedding) for h in valid_history])
             if len(embs) > 0:
                 index.add(embs)
                 executor.submit(faiss.write_index, index, get_faiss_path(user_id, conversation.id)).result()
 
-        if index.ntotal > 0 and len(history) > 0:
-            history_embs = np.array([json.loads(h.embedding) for h in history if h.embedding])
-            temp_index = faiss.IndexFlatL2(DIM)
-            temp_index.add(history_embs)
-            D, I = temp_index.search(query_emb.reshape(1, -1), k=min(10, temp_index.ntotal))
-            reranked_history_indices = I[0]
-            context_messages = [history[i].content for i in reranked_history_indices]
-            context = "\n".join(context_messages)
+        # Cải thiện retrieval: Hybrid BM25 + FAISS
+        index_contents = [h.content for h in valid_history]  # Nội dung để BM25
+        tokenized_contents = [re.findall(r'\w+', content.lower()) for content in index_contents]  # Tokenize đơn giản
+        bm25 = BM25Okapi(tokenized_contents)
+
+        # Query expansion: Tokenize query
+        query_tokens = re.findall(r'\w+', effective_query.lower())
+        bm25_scores = bm25.get_scores(query_tokens)
+
+        # FAISS search (k=10)
+        if index.ntotal > 0:
+            D, I_faiss = index.search(query_emb.reshape(1, -1), k=min(10, index.ntotal))
+            faiss_indices = I_faiss[0]
+        else:
+            faiss_indices = []
+
+        # Kết hợp scores: Weighted hybrid (0.7 semantic + 0.3 keyword)
+        hybrid_scores = {}
+        for i, idx in enumerate(faiss_indices):
+            if idx < len(bm25_scores):
+                hybrid_score = 0.7 * (1 - D[0][i]) + 0.3 * bm25_scores[idx]  # Normalize distance to similarity
+                hybrid_scores[idx] = hybrid_score
+
+        # Rerank top 5
+        reranked_indices = sorted(hybrid_scores, key=hybrid_scores.get, reverse=True)[:5]
+        
+        # Lọc và build context với similarity threshold
+        context_messages = []
+        for idx in reranked_indices:
+            if idx < len(valid_history):
+                msg = valid_history[idx]
+                sim_score = hybrid_scores[idx]
+                if sim_score > 0.3:  # Threshold để lọc irrelevant
+                    context_messages.append(msg.content)
+                    logger.debug(f"Retrieved msg {idx}: score {sim_score:.3f}, content: {msg.content[:50]}...")
+        
+        context = "\n".join(context_messages)
+        if not context:
+            logger.warning("No relevant context retrieved, using recent history fallback")
+            context = "\n".join([h.content for h in valid_history[-10:]])  # Fallback top 10 recent
 
     # 3. Stream Generate Response
     full_prompt = f"Context: {context}\nUser: {effective_query}" if not is_image else effective_query
@@ -205,7 +266,7 @@ def chat(
         yield f"data: {json.dumps({'conversation_id': conversation.id})}\n\n"
         full_response = []
         messages: List[Dict[str, Any]] = [
-            {"role": "system", "content": system_prompt},  # System prompt với gender
+            {"role": "system", "content": system_prompt},
             {"role": "user", "content": full_prompt}
         ]
         if is_image:
@@ -260,7 +321,7 @@ def chat(
             yield f"data: {json.dumps({'done': True})}\n\n"
             executor.submit(save_after_stream, ''.join(full_response)).result()
         except Exception as e:
-            logger.error(f"Error in stream generation: {e}")
+            logger.error(f"Lỗi trong stream generation: {e}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     def save_after_stream(full_response: str):
@@ -268,7 +329,7 @@ def chat(
             logger.error("Empty response from stream")
             return
         try:
-            ass_emb = get_embedding(full_response)
+            ass_emb = get_embedding(full_response, max_length=1024)
             user_msg_content = effective_query if not is_image else f"{message.message} (Image: {filename})"
             user_msg = ModelChatMessage(
                 user_id=user_id,
@@ -286,13 +347,18 @@ def chat(
             )
             db.add_all([user_msg, ass_msg])
             db.flush()
-            new_embs = np.array([query_emb, ass_emb])
-            index.add(new_embs)
+            
+            # Rebuild index để đảm bảo consistency
+            index = faiss.IndexFlatL2(DIM)
+            all_msgs = db.query(ModelChatMessage).filter(ModelChatMessage.conversation_id == conversation.id).all()
+            valid_embs = [json.loads(m.embedding) for m in all_msgs if m.embedding]
+            if valid_embs:
+                index.add(np.array(valid_embs))
             executor.submit(faiss.write_index, index, get_faiss_path(user_id, conversation.id)).result()
             db.commit()
         except Exception as e:
             db.rollback()
-            logger.error(f"Error saving messages or updating FAISS index: {e}")
+            logger.error(f"Lỗi khi lưu tin nhắn hoặc cập nhật FAISS index: {e}")
 
     return StreamingResponse(generate_stream(), media_type="text/event-stream")
 
@@ -386,7 +452,7 @@ def update_message(id: int, msg_update: ChatMessageUpdate, user_id: int = Depend
 
     if msg_update.content is not None:
         message.content = msg_update.content
-        new_embedding = get_embedding(msg_update.content)
+        new_embedding = get_embedding(msg_update.content, max_length=1024)
         message.embedding = json.dumps(new_embedding.tolist())
 
         index, _ = load_faiss(user_id, message.conversation_id)

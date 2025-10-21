@@ -18,3 +18,4 @@ textual
 rich
 requests
 pyinstaller
+rank_bm25

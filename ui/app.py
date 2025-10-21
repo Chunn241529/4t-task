@@ -72,11 +72,11 @@ class FourTAIApp(App):
     def compose(self) -> ComposeResult:
         yield Header()
         with Vertical(id="login-area"):
-            yield Static("Vui lòng nhập Access Token và nhấn nút [bold]Enter:[/bold]")
+            yield Button("Lấy token...", id="login-web-button")
+            yield Static("Vui lòng nhập [bold]Access Token [/bold]")
             yield Input(
                 placeholder="Dán token từ web...", password=True, id="token-input"
             )
-            yield Button("Lấy token...", id="login-web-button")
         yield ScrollableContainer(id="chat-history")
         with Vertical(id="input-area", classes="hidden"):
             yield Static("", id="file-status")
