@@ -4,7 +4,7 @@ import os
 from typing import Optional
 from textual.app import App, ComposeResult
 from textual.widgets import Header, Footer, Button, Input, Static
-from textual.containers import Vertical, ScrollableContainer
+from textual.containers import Vertical, ScrollableContainer, Horizontal
 from textual.reactive import var
 from textual.binding import Binding
 import webbrowser
@@ -36,19 +36,91 @@ class FourTAIApp(App):
     ]
 
     CSS = """
-    Screen { background: #0D1117; color: #C9D1D9; }
-    #login-area { height: auto; padding: 1; align: center middle; }
+    Screen { 
+        background: #0D1117; 
+        color: #C9D1D9; 
+    }
+    
+    /* Login Area Styling - Compact & Professional */
+    #login-area { 
+        height: 100%; 
+        align: center middle; 
+        background: #0D1117;
+    }
+    
+    .login-container {
+        width: 50;
+        height: auto;
+        padding: 1 2;
+        background: #161B22;
+        border: tall #30363D;
+    }
+    
+    .login-title {
+        text-align: center;
+        margin-bottom: 1;
+        color: #58A6FF;
+    }
+    
+    .login-button {
+        width: 100%;
+        margin: 1 0;
+        background: #238636;
+        color: white;
+    }
+    
+    .login-button:hover {
+        background: #2EA043;
+    }
+    
+    .token-input-row {
+        height: auto;
+        margin: 1 0;
+        align: center middle;
+    }
+    
+    #token-input {
+        width: 1fr;
+        border: round #30363D;
+        background: #010409;
+        color: #C9D1D9;
+        height: 3;
+    }
+    
+    #token-input:focus {
+        border: round #58A6FF;
+    }
+    
+    #get-token-button {
+        min-width: 12;
+        height: 3;
+        margin-left: 1;
+        background: #1F6FEB;
+        color: white;
+    }
+    
+    #get-token-button:hover {
+        background: #388BFD;
+    }
+    
+    .login-instruction {
+        text-align: center;
+        margin: 0 0 1 0;
+        color: #8B949E;
+        text-style: italic;
+    }
+    
+    /* Chat Area Styling */
     #chat-history { padding: 1; }
     #input-area { dock: bottom; height: auto; padding: 0 1; }
     #chat-input { margin: 1 0; border: round #30363D; }
     #chat-input:focus { border: round #58A6FF; }
     #file-status { height: 1; color: #888; padding-left: 1; }
-    #token-input { margin: 1 0; border: round #30363D; }
-    #token-input:focus { border: round #58A6FF; }
+    
     .hidden { display: none; }
     .help-box {
         margin: 1 2;
-        padding: 2 3;
+        padding: 1 2;
         background: #1C2526;
         color: #C9D1D9;
         border: double #58A6FF;
@@ -70,20 +142,26 @@ class FourTAIApp(App):
         self.http_client: Optional[httpx.AsyncClient] = None
 
     def compose(self) -> ComposeResult:
-        yield Header()
-        with Vertical(id="login-area"):
-            yield Button("Lấy token...", id="login-web-button")
-            yield Static("Vui lòng nhập [bold]Access Token [/bold]")
-            yield Input(
-                placeholder="Dán token từ web...", password=True, id="token-input"
-            )
-        yield ScrollableContainer(id="chat-history")
-        with Vertical(id="input-area", classes="hidden"):
-            yield Static("", id="file-status")
-            yield Input(
-                placeholder="Nhập tin nhắn hoặc /help để xem lệnh...", id="chat-input"
-            )
-        yield Footer()
+      yield Header()
+      with Vertical(id="login-area"):
+          with Vertical(classes="login-container"):
+              yield Static("🔐 4T AI LOGIN", classes="login-title")
+              yield Static("Nhập token để bắt đầu", classes="login-instruction")
+              with Horizontal(classes="token-input-row"):
+                  yield Input(
+                      placeholder="Dán Access Token...", 
+                      password=True, 
+                      id="token-input"
+                  )
+                  yield Button("Lấy token", id="get-token-button")
+              yield Button("🚀 Đăng nhập", id="login-submit-button", classes="login-button")
+      yield ScrollableContainer(id="chat-history")
+      with Vertical(id="input-area", classes="hidden"):
+          yield Static("", id="file-status")
+          yield Input(
+              placeholder="Nhập tin nhắn hoặc /help để xem lệnh...", id="chat-input"
+          )
+      yield Footer()
 
     async def on_mount(self) -> None:
         """Kiểm tra token đã lưu khi khởi động."""
@@ -99,77 +177,89 @@ class FourTAIApp(App):
         else:
             self.query_one("#token-input").focus()
 
+    # Các phương thức còn lại giữ nguyên...
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-        if event.button.id == "login-web-button":
-            url_open = os.getenv(
-                "API_URL", "https://living-tortoise-polite.ngrok-free.app"
-            )
-            webbrowser.open(url_open)
-        # self.mount_info_log("[yellow]Đã mở trình duyệt. Vui lòng đăng nhập và dán token từ web.[/yellow]")
+      if event.button.id == "get-token-button":
+          url_open = os.getenv(
+              "API_URL", "https://living-tortoise-polite.ngrok-free.app"
+          )
+          webbrowser.open(url_open)
+      elif event.button.id == "login-submit-button":
+          # Lấy token từ input và xử lý đăng nhập
+          token_input = self.query_one("#token-input")
+          token = token_input.value.strip()
+          if not token:
+              return
+          await self.process_token_login(token)
+          
+    async def process_token_login(self, token: str) -> None:
+      """Xử lý đăng nhập với token từ nút submit."""
+      try:
+          # Tạo thư mục chứa TOKEN_FILE_PATH nếu chưa tồn tại
+          token_dir = os.path.dirname(TOKEN_FILE_PATH)
+          if token_dir:
+              os.makedirs(token_dir, exist_ok=True)
+          with open(TOKEN_FILE_PATH, "w") as f:
+              f.write(token)
+      except PermissionError as e:
+          self.mount_info_log(
+              f"[red]Lỗi quyền truy cập: Không thể ghi file token tại {TOKEN_FILE_PATH}. Vui lòng kiểm tra quyền thư mục.[/red]"
+          )
+          return
+      except OSError as e:
+          self.mount_info_log(
+              f"[red]Lỗi khi lưu token tại {TOKEN_FILE_PATH}: {e}[/red]"
+          )
+          return
+      except Exception as e:
+          self.mount_info_log(f"[red]Lỗi không xác định khi lưu token: {e}[/red]")
+          return
+      await self.perform_login(token)
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-        """Xử lý sự kiện khi người dùng gửi input."""
-        if event.input.id == "token-input":
-            token = event.value.strip()
-            if not token:
-                self.mount_info_log("[red]Token không được để trống.[/red]")
-                return
-            try:
-                # Tạo thư mục chứa TOKEN_FILE_PATH nếu chưa tồn tại
-                token_dir = os.path.dirname(TOKEN_FILE_PATH)
-                if token_dir:
-                    os.makedirs(token_dir, exist_ok=True)
-                with open(TOKEN_FILE_PATH, "w") as f:
-                    f.write(token)
-            except PermissionError as e:
-                self.mount_info_log(
-                    f"[red]Lỗi quyền truy cập: Không thể ghi file token tại {TOKEN_FILE_PATH}. Vui lòng kiểm tra quyền thư mục.[/red]"
-                )
-                return
-            except OSError as e:
-                self.mount_info_log(
-                    f"[red]Lỗi khi lưu token tại {TOKEN_FILE_PATH}: {e}[/red]"
-                )
-                return
-            except Exception as e:
-                self.mount_info_log(f"[red]Lỗi không xác định khi lưu token: {e}[/red]")
-                return
-            await self.perform_login(token)
-        elif event.input.id == "chat-input":
-            user_message = event.value.strip()
-            event.input.value = ""
-            if not user_message:
-                return
-            if user_message.startswith("/"):
-                await self.handle_client_command(
-                    user_message, self.query_one("#chat-history")
-                )
-            else:
-                chat_history = self.query_one("#chat-history")
-                chat_history.mount(Static(f">>> {user_message}"))
-                chat_history.scroll_end()
-                if self.http_client:
-                    result = await send_chat_request(
-                        self.http_client,
-                        user_message,
-                        self.current_conversation_id,
-                        self.attached_file_path,
-                        chat_history,
-                    )
-                    if result == "auth_error":
-                        self.query_one("#chat-input").disabled = True
-                        self.mount_info_log(
-                            "[red]Lỗi xác thực. Vui lòng đăng nhập lại.[/red]"
-                        )
-                    elif result is not None:
-                        self.current_conversation_id = result
-                        chat_history.scroll_end()
-                else:
-                    self.mount_info_log(
-                        "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
-                    )
-            self.attached_file_path = None
+      """Xử lý sự kiện khi người dùng gửi input."""
+      if event.input.id == "token-input":
+          token = event.value.strip()
+          if not token:
+              self.mount_info_log("[red]Token không được để trống.[/red]")
+              return
+          await self.process_token_login(token)
+      elif event.input.id == "chat-input":
+          user_message = event.value.strip()
+          event.input.value = ""
+          if not user_message:
+              return
+          if user_message.startswith("/"):
+              await self.handle_client_command(
+                  user_message, self.query_one("#chat-history")
+              )
+          else:
+              chat_history = self.query_one("#chat-history")
+              chat_history.mount(Static(f">>> {user_message}"))
+              chat_history.scroll_end()
+              if self.http_client:
+                  result = await send_chat_request(
+                      self.http_client,
+                      user_message,
+                      self.current_conversation_id,
+                      self.attached_file_path,
+                      chat_history,
+                  )
+                  if result == "auth_error":
+                      self.query_one("#chat-input").disabled = True
+                      self.mount_info_log(
+                          "[red]Lỗi xác thực. Vui lòng đăng nhập lại.[/red]"
+                      )
+                  elif result is not None:
+                      self.current_conversation_id = result
+                      chat_history.scroll_end()
+              else:
+                  self.mount_info_log(
+                      "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
+                  )
+          self.attached_file_path = None
 
+    # Các phương thức còn lại giữ nguyên hoàn toàn...
     async def perform_login(self, token: str, is_saved_token: bool = False) -> None:
         """Thực hiện đăng nhập với token."""
         self.http_client = httpx.AsyncClient(
@@ -185,9 +275,7 @@ class FourTAIApp(App):
         chat_input.focus()
 
         if is_saved_token:
-            self.mount_info_log(
-                "[green]Đã tự động đăng nhập vào 4T AI thành công.[/green]"
-            )
+            print("[AUTO LOGIN SUCCESFULL]")
         else:
             self.mount_info_log(
                 "[green]Đăng nhập vào 4T AI thành công! Token đã được lưu cho lần sau.[/green]"
