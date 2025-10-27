@@ -146,19 +146,54 @@
                  <div class="token-widget" id="tokenWidget">
                     <div class="smart-field" data-field="token">
                         <div class="field-background"></div>
-                        <input type="text" id="tokenValue" readonly>
-                        <label for="tokenValue">Token</label>
+                        <input type="text" id="tokenValue" readonly onclick="copyTokenToClipboard()" style="cursor: pointer;">
+                        <label for="tokenValue">Token (Click để copy)</label>
                         <div class="ai-indicator">
                             <div class="ai-pulse"></div>
                         </div>
                         <div class="field-completion"></div>
                     </div>
-
                 </div>
                 <p>Dán Token này vào app để tiếp tục...</p>
             </div>
         </div>
     </div>
     <script src="../static/login.js"></script>
+    <script>
+        function copyTokenToClipboard() {
+            const tokenInput = document.getElementById('tokenValue');
+            if (tokenInput.value) {
+                tokenInput.select();
+                tokenInput.setSelectionRange(0, 99999); // For mobile devices
+                
+                try {
+                    navigator.clipboard.writeText(tokenInput.value).then(() => {
+                        // Hiệu ứng feedback
+                        const originalLabel = tokenInput.nextElementSibling;
+                        const originalText = originalLabel.textContent;
+                        originalLabel.textContent = '✓ Đã copy!';
+                        originalLabel.style.color = '#10b981';
+                        
+                        setTimeout(() => {
+                            originalLabel.textContent = originalText;
+                            originalLabel.style.color = '';
+                        }, 2000);
+                    });
+                } catch (err) {
+                    // Fallback cho trình duyệt cũ
+                    document.execCommand('copy');
+                    const originalLabel = tokenInput.nextElementSibling;
+                    const originalText = originalLabel.textContent;
+                    originalLabel.textContent = '✓ Đã copy!';
+                    originalLabel.style.color = '#10b981';
+                    
+                    setTimeout(() => {
+                        originalLabel.textContent = originalText;
+                        originalLabel.style.color = '';
+                    }, 2000);
+                }
+            }
+        }
+    </script>
 </body>
 </html>

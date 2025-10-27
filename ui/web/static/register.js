@@ -299,6 +299,7 @@ class AIRegisterForm {
                 <div class="field-completion"></div>
             </div>
             <span class="error-message" id="codeError"></span>
+            <br>
             <button type="submit" class="neural-button">
                 <div class="button-bg"></div>
                 <span class="button-text">Verify Connection</span>
@@ -370,7 +371,10 @@ class AIRegisterForm {
     setLoading(loading, button = this.submitButton) {
         button.classList.toggle('loading', loading);
         button.disabled = loading;
-        console.log('Set loading state:', loading, 'for button:', button);
+        this.socialButtons.forEach(btn => {
+            btn.style.pointerEvents = loading ? 'none' : 'auto';
+            btn.style.opacity = loading ? '0.5' : '1';
+        });
     }
 
     showSuccess(token) {

@@ -216,6 +216,7 @@ class AIAssistantLoginForm {
                 <div class="field-completion"></div>
             </div>
             <span class="error-message" id="codeError"></span>
+            <br>
             <button type="submit" class="neural-button">
                 <div class="button-bg"></div>
                 <span class="button-text">Verify Connection</span>
