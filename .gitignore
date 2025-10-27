@@ -1,9 +1,9 @@
 
 .venv
 test.db
-main_ui_old.py
-chat_old.py
-main_be_old.py
+helper/chat_old.py
+helper/main_be_old.py
+helper/main_ui_old.py
 
 .env
 faiss_indices
