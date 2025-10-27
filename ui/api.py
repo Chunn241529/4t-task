@@ -51,13 +51,14 @@ async def send_chat_request(
         initial_spinner_container = None
         response_spinner = None
         response_spinner_container = None
+        is_using_tool = False
 
-        # Hiển thị spinner ban đầu khi gửi yêu cầu
+        # Hiển thị spinner ban đầu với text "đang suy nghĩ"
         initial_spinner = AnimatedSpinner("⠋", classes="spinner")
         initial_spinner.styles.width = 1
         initial_spinner.styles.height = 1
         initial_spinner.styles.color = "white"
-        initial_spinner_container = Static("")
+        initial_spinner_container = Static("  [white]Hmm....[/white]")
         initial_spinner_container.styles.display = "block"
         initial_spinner_container.styles.padding = (0, 0, 0, 2)
         chat_history.mount(initial_spinner_container)
@@ -75,18 +76,17 @@ async def send_chat_request(
                         continue
                     try:
                         data_chunk = json.loads(content)
+                        print(f"DEBUG: Stream chunk: {data_chunk}")  # Log full chunk
                         if "conversation_id" in data_chunk:
                             conversation_id = data_chunk["conversation_id"]
                             continue
                         elif data_chunk.get("done"):
-                            # Đợi UI render nội dung cuối cùng
                             if ai_response_md and accumulated_content:
                                 ai_response_md.update(accumulated_content)
                                 chat_history.scroll_end()
-                            await asyncio.sleep(0.1)  # Đợi UI ổn định
+                            await asyncio.sleep(0.1)
                             break
                         elif data_chunk.get("error"):
-                            # Xóa cả hai spinner nếu có lỗi
                             if initial_spinner_container:
                                 initial_spinner_container.remove()
                             if response_spinner_container:
@@ -97,6 +97,13 @@ async def send_chat_request(
                                 )
                             )
                             break
+                        elif data_chunk.get("tool_calls") and isinstance(data_chunk["tool_calls"], list) and data_chunk["tool_calls"]:
+                          print(f"DEBUG: Tool calls detected: {data_chunk['tool_calls']}")
+                          if initial_spinner_container and not is_using_tool:
+                              initial_spinner_container.update("  [white]Nhi đang tìm...[/white]")
+                              initial_spinner_container.refresh()
+                              is_using_tool = True
+                          continue
                         elif data_chunk.get("content"):
                             decoded_content = (
                                 data_chunk["content"]
@@ -105,15 +112,12 @@ async def send_chat_request(
                             )
                             accumulated_content += decoded_content
                             if not ai_response_md:
-                                # Xóa spinner ban đầu khi phản hồi bắt đầu
                                 if initial_spinner_container:
                                     initial_spinner_container.remove()
                                     initial_spinner_container = None
-                                # Hiển thị phản hồi
                                 chat_history.mount(Static(""))
                                 ai_response_md = Markdown("")
                                 chat_history.mount(ai_response_md)
-                                # Hiển thị spinner phản hồi
                                 response_spinner = AnimatedSpinner("⠋", classes="spinner")
                                 response_spinner.styles.width = 1
                                 response_spinner.styles.height = 1
@@ -123,25 +127,22 @@ async def send_chat_request(
                                 response_spinner_container.styles.padding = (0, 0, 0, 2)
                                 chat_history.mount(response_spinner_container)
                                 response_spinner_container.mount(response_spinner)
-                            # Cập nhật nội dung tích lũy
                             ai_response_md.update(accumulated_content)
                             chat_history.scroll_end()
-                            await asyncio.sleep(0.05)  # Đợi UI render
-                    except json.JSONDecodeError:
+                            await asyncio.sleep(0.05)
+                    except json.JSONDecodeError as e:
+                        print(f"DEBUG: JSON decode error on chunk: {content}, error: {e}")
                         decoded_content = content.encode().decode(
                             "utf-8", errors="replace"
                         )
                         accumulated_content += decoded_content
                         if not ai_response_md:
-                            # Xóa spinner ban đầu khi phản hồi bắt đầu
                             if initial_spinner_container:
                                 initial_spinner_container.remove()
                                 initial_spinner_container = None
-                            # Hiển thị phản hồi
                             chat_history.mount(Static(""))
                             ai_response_md = Markdown("")
                             chat_history.mount(ai_response_md)
-                            # Hiển thị spinner phản hồi
                             response_spinner = AnimatedSpinner("⠋", classes="spinner")
                             response_spinner.styles.width = 1
                             response_spinner.styles.height = 1
@@ -151,25 +152,21 @@ async def send_chat_request(
                             response_spinner_container.styles.padding = (0, 0, 0, 2)
                             chat_history.mount(response_spinner_container)
                             response_spinner_container.mount(response_spinner)
-                        # Cập nhật nội dung tích lũy
                         ai_response_md.update(accumulated_content)
                         chat_history.scroll_end()
-                        await asyncio.sleep(0.05)  # Đợi UI render
+                        await asyncio.sleep(0.05)
 
-        # Đảm bảo nội dung cuối cùng được hiển thị
         if ai_response_md and accumulated_content:
             ai_response_md.update(accumulated_content)
             chat_history.scroll_end()
-            await asyncio.sleep(0.1)  # Đợi UI ổn định
+            await asyncio.sleep(0.1)
 
-        # Xóa spinner phản hồi sau khi render hoàn tất
         if response_spinner_container:
             response_spinner_container.remove()
 
         return conversation_id
 
     except httpx.HTTPStatusError as e:
-        # Xóa cả hai spinner nếu có lỗi
         if initial_spinner_container:
             initial_spinner_container.remove()
         if response_spinner_container:
@@ -183,7 +180,6 @@ async def send_chat_request(
             return "auth_error"
         return None
     except httpx.ConnectError:
-        # Xóa cả hai spinner nếu có lỗi kết nối
         if initial_spinner_container:
             initial_spinner_container.remove()
         if response_spinner_container:
@@ -193,13 +189,12 @@ async def send_chat_request(
         )
         return None
 
-
 async def fetch_conversations(
     http_client: httpx.AsyncClient, chat_history: ScrollableContainer
 ) -> None:
     """Lấy danh sách các cuộc hội thoại từ API."""
     try:
-        response = await http_client.get("/conversations")
+        response = await http_client.get("/conversations/")
         response.raise_for_status()
         conversations = response.json()
         if not conversations:
@@ -226,7 +221,7 @@ async def load_conversation_history(
         Static(f"Đang tải lịch sử cho cuộc hội thoại [bold cyan]#{conv_id}[/]...")
     )
     try:
-        response = await http_client.get(f"/conversations/{conv_id}/messages")
+        response = await http_client.get(f"/messages/conversations/{conv_id}/messages")
         response.raise_for_status()
         messages = response.json()
         for msg in messages:
@@ -253,3 +248,67 @@ async def load_conversation_history(
     except Exception as e:
         chat_history.mount(Static(f"[red]Lỗi khi tải lịch sử: {e}[/red]"))
         return False  # Tải thất bại
+
+async def delete_current_conversation(
+    http_client: httpx.AsyncClient,
+    conversation_id: Optional[int],
+    chat_history: ScrollableContainer,
+) -> Optional[int]:
+    """Xóa cuộc hội thoại hiện tại đang được tải."""
+    if conversation_id is None:
+        chat_history.mount(Static("[yellow]Bạn đang ở ngoài cuộc trò chuyện, không thể xóa.[/yellow]"))
+        return None
+
+    try:
+        response = await http_client.delete(f"/conversations/{conversation_id}")
+        response.raise_for_status()
+        chat_history.query("*").remove()
+        chat_history.scroll_end()
+        return None
+
+    except httpx.HTTPStatusError as e:
+        chat_history.mount(
+            Static(
+                f"[bold red]Lỗi khi xóa cuộc hội thoại: {e.response.status_code} - {e.response.text}[/red]"
+            )
+        )
+        chat_history.scroll_end()
+        if e.response.status_code in (401, 403):
+            return "auth_error"
+        return conversation_id  
+    except httpx.ConnectError:
+        chat_history.mount(
+            Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/bold red]")
+        )
+        chat_history.scroll_end()
+        return conversation_id  
+      
+async def delete_all_conversation(
+    http_client: httpx.AsyncClient,
+    chat_history: ScrollableContainer,
+) -> Optional[int]:
+    """Xóa cuộc hội thoại hiện tại đang được tải."""
+
+
+    try:
+        response = await http_client.delete(f"/conversations/")
+        response.raise_for_status()
+        chat_history.query("*").remove()
+        chat_history.scroll_end()
+        return None
+
+    except httpx.HTTPStatusError as e:
+        chat_history.mount(
+            Static(
+                f"[bold red]Lỗi khi xóa cuộc hội thoại: {e.response.status_code} - {e.response.text}[/red]"
+            )
+        )
+        chat_history.scroll_end()
+        if e.response.status_code in (401, 403):
+            return "auth_error"
+
+    except httpx.ConnectError:
+        chat_history.mount(
+            Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/bold red]")
+        )
+        chat_history.scroll_end()

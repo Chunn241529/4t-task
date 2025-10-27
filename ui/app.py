@@ -10,7 +10,7 @@ from textual.binding import Binding
 import webbrowser
 
 from config import API_BASE_URL, TOKEN_FILE_PATH
-from api import send_chat_request, fetch_conversations, load_conversation_history
+from api import delete_all_conversation, delete_current_conversation, send_chat_request, fetch_conversations, load_conversation_history
 
 # Cấu hình logging vào file trong thư mục logs/
 log_dir = os.path.join(os.path.dirname(__file__), "logs")
@@ -314,6 +314,8 @@ class FourTAIApp(App):
   [bold][#58A6FF]/file <path>[/]: Đính kèm một file vào tin nhắn tiếp theo 📎
   [bold][#58A6FF]/clearfile[/]: Gỡ file đã đính kèm 🗑️
   [bold][#58A6FF]/clear[/]: Xóa trắng màn hình chat hiện tại 🧹
+  [bold][#58A6FF]/delete[/]: Xóa cuộc hội thoại hiện tại 🗑️
+  [bold][#58A6FF]/delete_all[/]: Xóa cuộc tất cả hội thoại 🗑️
   [bold][#58A6FF]/logout[/]: Xóa token đã lưu và thoát 🚪
   """
             chat_history.mount(Static(help_text, classes="help-box"))
@@ -373,6 +375,26 @@ class FourTAIApp(App):
             self.attached_file_path = None
         elif cmd == "/clear":
             chat_history.query("*").remove()
+        elif cmd == "/delete":
+            if self.http_client:
+                await delete_current_conversation(self.http_client, self.current_conversation_id, chat_history)
+                await self.action_new_chat()
+            else:
+                chat_history.mount(
+                    Static(
+                        "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
+                    )
+                )
+        elif cmd == "/delete_all":
+            if self.http_client:
+                await delete_all_conversation(self.http_client, chat_history)
+                await self.action_new_chat()
+            else:
+                chat_history.mount(
+                    Static(
+                        "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
+                    )
+                )
         else:
             chat_history.mount(Static(f"[yellow]Lệnh không xác định: {cmd}.[/yellow]"))
 

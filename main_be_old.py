@@ -41,6 +41,19 @@ app.add_middleware(
     expose_headers=["Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"],
 )
 
+# Middleware để log yêu cầu và thêm header CORS
+# @app.middleware("http")
+# async def log_requests(request: Request, call_next):
+#     logger.debug(f"Received request: {request.method} {request.url}, headers: {request.headers}")
+#     response = await call_next(request)
+#     logger.debug(f"Response status: {response.status_code} for {request.method} {request.url}, response headers: {response.headers}")
+#     # Thêm header CORS vào mọi phản hồi
+#     response.headers["Access-Control-Allow-Origin"] = "https://living-tortoise-polite.ngrok-free.app"
+#     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+#     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+#     response.headers["Access-Control-Allow-Credentials"] = "true"
+#     return response
+
 # Route để render login.html tại '/'
 @app.get("/", response_class=HTMLResponse)
 async def get_login(request: Request):
@@ -58,13 +71,13 @@ async def get_forgetpw(request: Request):
 async def get_reset_password(request: Request):
     return templates.TemplateResponse("reset-password.html", {"request": request})
 
-# Include routers - SỬA LẠI CÁCH IMPORT
+# Include routers
 app.include_router(auth.router, prefix="/auth")
 app.include_router(task.router)
-app.include_router(chat_router)
-app.include_router(conversations_router)
-app.include_router(messages_router)
-app.include_router(rag_router)
+app.include_router(chat_router, prefix="/api")
+app.include_router(conversations_router, prefix="/api")
+app.include_router(messages_router, prefix="/api")
+app.include_router(rag_router, prefix="/api")
 
 def main():
     uvicorn.run(app, host="0.0.0.0", port=8000)

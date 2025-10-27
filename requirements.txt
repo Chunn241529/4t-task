@@ -19,3 +19,5 @@ rich
 requests
 pyinstaller
 rank_bm25
+python-telegram-bot
+numpy
