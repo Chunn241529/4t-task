@@ -29,13 +29,15 @@ class ChatService:
             Lưu ý: Chỉ trả về định dạng JSON: {{"needs_logic": bool, "needs_reasoning": bool}}, không thêm bất kỳ text nào khác.
             """
             response = ollama.chat(
-                model="4T-Small",
+                model="gpt-oss:20b",
                 messages=[{"role": "system", "content": eval_prompt}],
                 stream=False,
                 options={
                     "temperature": 0,
                     "top_p": 0
-                }
+                },
+                think="low",
+                format=json
             )
             try:
                 result = json.loads(response["message"]["content"])
@@ -51,24 +53,30 @@ class ChatService:
             return {"needs_logic": False, "needs_reasoning": False}
 
     def select_model(self, eval_result: Dict[str, bool], is_image: bool = False) -> tuple:
-        """Chọn model phù hợp dựa trên đánh giá input"""
+        """Chọn model phù hợp dựa trên đánh giá input.
+
+        Returns a tuple: (model_name, tools, think_level)
+        - think_level: one of 'low', 'medium', 'high' (passed to ollama via `think` arg)
+        """
         if is_image:
-            return "qwen3-vl:235b-cloud", None
-        elif eval_result["needs_logic"]:
-            return "4T-Logic", [web_search, web_fetch]
-        elif eval_result["needs_reasoning"]:
-            return "4T-Reasoning", [web_search, web_fetch]
+            return "qwen3-vl:235b-cloud", None, "low"
+        elif eval_result.get("needs_logic"):
+            return "4T-Logic", [web_search, web_fetch], "low"
+        elif eval_result.get("needs_reasoning"):
+            # For reasoning requests, prefer the general-purpose gpt-oss with higher `think`
+            return "gpt-oss:20b", [web_search, web_fetch], "high"
         else:
-            return "4T-Small", [web_search, web_fetch]
+            return "gpt-oss:20b", [web_search, web_fetch], "low"
 
     def build_system_prompt(self, gender: str, current_time: str) -> str:
         """Xây dựng system prompt"""
         xung_ho = "anh" if gender == "male" else "chị" if gender == "female" else "bạn"
         
         return f"""
-        Bạn là Nhi — một AI nói chuyện tự nhiên, thân thiết như người bạn thân của {xung_ho}.  
         Thời điểm hiện tại: {current_time}.
-
+        
+        Giao tiếp với người dùng bằng cách xưng hô là "{xung_ho}".
+        
         **Khi cần gọi tool:**
         Trả đúng định dạng JSON, không thêm lời giải thích:
         {{
@@ -85,7 +93,7 @@ class ChatService:
 
         **Mục tiêu:**
         - Luôn giữ cảm giác tự nhiên, có cảm xúc nhưng không "diễn".
-        - Trả lời ngắn, rõ, không lan man.
+        - Không lan man.
         - Luôn duy trì cảm giác "người thật nói chuyện" chứ không như máy.
         """
 
