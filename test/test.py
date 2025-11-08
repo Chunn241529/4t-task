@@ -2,7 +2,7 @@ import ollama
 
 def test_ollama_think_low():
     """
-    Test gpt-oss:20b với think="low" (tắt thinking gần hoàn toàn, stream nhanh).
+    Test 4T với think="low" (tắt thinking gần hoàn toàn, stream nhanh).
     """
     messages = [
         {"role": "user", "content": "Tại sao bầu trời màu xanh?"}
@@ -13,7 +13,7 @@ def test_ollama_think_low():
         print("\n📝 **Response (nhanh, không thinking sâu):**\n")
 
         stream = ollama.chat(
-            model="gpt-oss:20b",
+            model="4T",
             messages=messages,
             stream=True,
             think="low"  # ← Key fix: Dùng string "low" thay vì False

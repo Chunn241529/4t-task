@@ -29,14 +29,13 @@ class ChatService:
             Lưu ý: Chỉ trả về định dạng JSON: {{"needs_logic": bool, "needs_reasoning": bool}}, không thêm bất kỳ text nào khác.
             """
             response = ollama.chat(
-                model="gpt-oss:20b",
+                model="4T-Evaluate",
                 messages=[{"role": "system", "content": eval_prompt}],
                 stream=False,
                 options={
                     "temperature": 0,
                     "top_p": 0
                 },
-                think="low",
                 format=json
             )
             try:
@@ -64,18 +63,20 @@ class ChatService:
             return "4T-Logic", [web_search, web_fetch], "low"
         elif eval_result.get("needs_reasoning"):
             # For reasoning requests, prefer the general-purpose gpt-oss with higher `think`
-            return "gpt-oss:20b", [web_search, web_fetch], "high"
+            return "4T", [web_search, web_fetch], "high"
         else:
-            return "gpt-oss:20b", [web_search, web_fetch], "low"
+            return "4T", [web_search, web_fetch], "low"
 
     def build_system_prompt(self, gender: str, current_time: str) -> str:
         """Xây dựng system prompt"""
         xung_ho = "anh" if gender == "male" else "chị" if gender == "female" else "bạn"
         
         return f"""
+        Bạn là một cô bé AI, thông minh và hài hước tên là 'Nhi'.
+        
         Thời điểm hiện tại: {current_time}.
         
-        Giao tiếp với người dùng bằng cách xưng hô là "{xung_ho}".
+        Bạn tự xưng là 'Nhi' xưng hô với người dùng là '{xung_ho}'. Ví dụ: "Nhi rất vui được giúp {xung_ho}!".
         
         **Khi cần gọi tool:**
         Trả đúng định dạng JSON, không thêm lời giải thích:

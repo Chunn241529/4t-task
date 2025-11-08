@@ -8,6 +8,8 @@ from textual.containers import ScrollableContainer
 from textual.reactive import reactive
 import asyncio
 
+from config import TOKEN_FILE_PATH
+
 
 class AnimatedSpinner(Static):
     """A custom Static widget that animates a spinner using a sequence of characters."""
@@ -75,7 +77,9 @@ async def send_chat_request(
 
         # show a simple, non-animated spinner immediately so the UI reacts before server sends anything
         try:
-            pre_spinner_container = Static(f"  [{THINKING_COLOR}]{THINKING_PREFIX} Đang gửi...[/]")
+            pre_spinner_container = Static(
+                f"  [{THINKING_COLOR}]{THINKING_PREFIX} Đang gửi...[/]"
+            )
             pre_spinner_container.styles.display = "block"
             pre_spinner_container.styles.padding = (0, 0, 0, 2)
             chat_history.mount(pre_spinner_container)
@@ -90,13 +94,23 @@ async def send_chat_request(
                 create_resp.raise_for_status()
                 create_json = create_resp.json()
                 # try to extract id from response
-                new_id = create_json.get("id") if isinstance(create_json, dict) else None
+                new_id = (
+                    create_json.get("id") if isinstance(create_json, dict) else None
+                )
                 if new_id is None:
                     # fallback: try common keys
-                    new_id = create_json.get("conversation_id") if isinstance(create_json, dict) else None
+                    new_id = (
+                        create_json.get("conversation_id")
+                        if isinstance(create_json, dict)
+                        else None
+                    )
                 if new_id is None:
                     # couldn't determine id — show message and continue without id
-                    chat_history.mount(Static("[yellow]Tạo cuộc hội thoại mới nhưng không nhận được ID. Tiếp tục gửi mà không có conversation_id.[/]") )
+                    chat_history.mount(
+                        Static(
+                            "[yellow]Tạo cuộc hội thoại mới nhưng không nhận được ID. Tiếp tục gửi mà không có conversation_id.[/]"
+                        )
+                    )
                 else:
                     conversation_id = new_id
             except httpx.HTTPStatusError as e:
@@ -106,7 +120,18 @@ async def send_chat_request(
                     body = (await e.response.aread()).decode("utf-8", errors="replace")
                 except Exception:
                     body = str(e.response)
-                chat_history.mount(Static(f"[red]Không thể tạo cuộc hội thoại mới: {e.response.status_code} {body}[/]"))
+
+                if e.response.status_code == 401 and "Token has expired" in body:
+                    error_message = "Token của bạn đã hết hạn. Vui lòng khởi động lại."
+                    if os.path.exists(TOKEN_FILE_PATH):
+                        try:
+                            os.remove(TOKEN_FILE_PATH)
+                        except Exception as e:
+                            chat_history.mount(
+                                Static(f"[red]Lỗi khi xóa token: {e}[/red]")
+                            )
+
+                chat_history.mount(Static(f"[red]{error_message}[/]"))
                 if pre_spinner_container:
                     try:
                         pre_spinner_container.remove()
@@ -166,7 +191,9 @@ async def send_chat_request(
                         initial_spinner.styles.width = 1
                         initial_spinner.styles.height = 1
                         initial_spinner.styles.color = THINKING_COLOR
-                        initial_spinner_container = Static(f"  [{THINKING_COLOR}]{THINKING_PREFIX} Nhi đang suy nghĩ...[/]")
+                        initial_spinner_container = Static(
+                            f"  [{THINKING_COLOR}]{THINKING_PREFIX} Nhi đang suy nghĩ...[/]"
+                        )
                         initial_spinner_container.styles.display = "block"
                         initial_spinner_container.styles.padding = (0, 0, 0, 2)
                         chat_history.mount(initial_spinner_container)
@@ -192,10 +219,16 @@ async def send_chat_request(
                         initial_spinner_container.remove()
                     if response_spinner_container:
                         response_spinner_container.remove()
-                    chat_history.mount(Static(f"[bold red]Lỗi Stream: {data_chunk['error']}[/]"))
+                    chat_history.mount(
+                        Static(f"[bold red]Lỗi Stream: {data_chunk['error']}[/]")
+                    )
                     break
 
-                if data_chunk.get("tool_calls") and isinstance(data_chunk["tool_calls"], list) and data_chunk["tool_calls"]:
+                if (
+                    data_chunk.get("tool_calls")
+                    and isinstance(data_chunk["tool_calls"], list)
+                    and data_chunk["tool_calls"]
+                ):
                     print(f"DEBUG: Tool calls detected: {data_chunk['tool_calls']}")
                     if initial_spinner_container and not is_using_tool:
                         # change spinner visual to indicate a tool/search action
@@ -205,7 +238,9 @@ async def send_chat_request(
                             initial_spinner.styles.color = TOOL_COLOR
                         except Exception:
                             pass
-                        initial_spinner_container.update(f"  [{TOOL_COLOR}]{TOOL_PREFIX} Nhi đang tìm...[/]")
+                        initial_spinner_container.update(
+                            f"  [{TOOL_COLOR}]{TOOL_PREFIX} Nhi đang tìm...[/]"
+                        )
                         initial_spinner_container.refresh()
                         is_using_tool = True
                     # Create a placeholder response area so any tool output/content is shown
@@ -235,7 +270,9 @@ async def send_chat_request(
                     continue
 
                 if data_chunk.get("content"):
-                    decoded_content = data_chunk["content"].encode().decode("utf-8", errors="replace")
+                    decoded_content = (
+                        data_chunk["content"].encode().decode("utf-8", errors="replace")
+                    )
                     accumulated_content += decoded_content
                     if not ai_response_md:
                         # ensure typing indicator / pre-request spinner removed before showing content
@@ -260,7 +297,9 @@ async def send_chat_request(
                         response_spinner.current_index = 0
                         response_spinner.styles.width = 1
                         response_spinner.styles.height = 1
-                        response_spinner.styles.color = RESPONSE_TOOL_COLOR if is_using_tool else "white"
+                        response_spinner.styles.color = (
+                            RESPONSE_TOOL_COLOR if is_using_tool else "white"
+                        )
                         response_spinner_container = Static("")
                         response_spinner_container.styles.display = "block"
                         response_spinner_container.styles.padding = (0, 0, 0, 2)
@@ -306,9 +345,7 @@ async def send_chat_request(
                 body_text = "<không thể đọc body>"
 
         chat_history.mount(
-            Static(
-                f"[bold red]Lỗi API {e.response.status_code}: {body_text}[/]"
-            )
+            Static(f"[bold red]Lỗi API {e.response.status_code}: {body_text}[/]")
         )
         if e.response.status_code in (401, 403):
             return "auth_error"
@@ -322,6 +359,7 @@ async def send_chat_request(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/]")
         )
         return None
+
 
 async def fetch_conversations(
     http_client: httpx.AsyncClient, chat_history: ScrollableContainer
@@ -376,12 +414,15 @@ async def load_conversation_history(
             )
         else:
             chat_history.mount(
-                Static(f"[red]Lỗi khi tải lịch sử: {e.response.status_code} - {e.response.text}[/]")
+                Static(
+                    f"[red]Lỗi khi tải lịch sử: {e.response.status_code} - {e.response.text}[/]"
+                )
             )
         return False  # Tải thất bại
     except Exception as e:
         chat_history.mount(Static(f"[red]Lỗi khi tải lịch sử: {e}[/]"))
         return False  # Tải thất bại
+
 
 async def delete_current_conversation(
     http_client: httpx.AsyncClient,
@@ -390,7 +431,9 @@ async def delete_current_conversation(
 ) -> Optional[int]:
     """Xóa cuộc hội thoại hiện tại đang được tải."""
     if conversation_id is None:
-        chat_history.mount(Static("[yellow]Bạn đang ở ngoài cuộc trò chuyện, không thể xóa.[/]") )
+        chat_history.mount(
+            Static("[yellow]Bạn đang ở ngoài cuộc trò chuyện, không thể xóa.[/]")
+        )
         return None
 
     try:
@@ -409,14 +452,15 @@ async def delete_current_conversation(
         chat_history.scroll_end()
         if e.response.status_code in (401, 403):
             return "auth_error"
-        return conversation_id  
+        return conversation_id
     except httpx.ConnectError:
         chat_history.mount(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/]")
         )
         chat_history.scroll_end()
-        return conversation_id  
-      
+        return conversation_id
+
+
 async def delete_all_conversation(
     http_client: httpx.AsyncClient,
     chat_history: ScrollableContainer,

@@ -26,13 +26,11 @@ from app.schemas import ChatMessage, ConversationCreate, ChatMessageIn
 from app.routers.task import get_current_user
 from app.services.rag_service import RAGService
 from app.services.file_service import FileService
-from app.services.qc_rag_service import QCRAGService
 from app.services.chat_service import ChatService
 
 router = APIRouter(prefix="/chat", tags=["chat"])
 rag_service = RAGService()
 file_service = FileService()
-qc_rag_service = QCRAGService(rag_service)  # Đã inject RAGService
 chat_service = ChatService()
 
 logger = logging.getLogger(__name__)
@@ -184,7 +182,7 @@ def chat(
         model_name = "4T-Reasoning"
         tools = [web_search, web_fetch]
     else:
-        model_name = "gpt-oss:20b"
+        model_name = "4T"
         tools = [web_search, web_fetch]
 
     # Delegate context preparation and model selection to ChatService
@@ -568,29 +566,3 @@ async def handle_file_upload(websocket: WebSocket, data: dict, user_id: int, con
         
         
 
-## QC RAG service already imported and instantiated above; removed duplicate initialization
-
-# Thêm endpoint mới
-@router.post("/qc/import-document")
-async def qc_import_document(
-    file: UploadFile = File(...),
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Import document vào QC knowledge base"""
-    try:
-        file_content = await file.read()
-        result = qc_rag_service.process_project_document(file_content, file.filename, user_id)
-        return {"message": result}
-    except Exception as e:
-        raise HTTPException(500, f"Import failed: {str(e)}")
-
-@router.get("/qc/context")
-def get_qc_context(
-    query: str,
-    user_id: int = Depends(get_current_user),
-    db: Session = Depends(get_db)
-):
-    """Lấy QC context cho query"""
-    context = qc_rag_service.get_qc_context(query, user_id)
-    return {"context": context}
