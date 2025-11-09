@@ -6,7 +6,7 @@ helper/main_be_old.py
 helper/main_ui_old.py
 server.db
 git-completion.bash
-
+git.sh
 
 .env
 faiss_indices
