@@ -32,7 +32,7 @@ class FourTAIApp(App):
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Thoát"),
-        Binding("ctrl+l", "new_chat", "Chat Mới (Clean màn hình)"),
+        Binding("ctrl+l", "new_chat", "Chat mới"),
     ]
 
     CSS = """
@@ -112,9 +112,17 @@ class FourTAIApp(App):
     
     /* Chat Area Styling */
     #chat-history { padding: 1; }
-    #input-area { dock: bottom; height: auto; padding: 0 1; }
-    #chat-input { margin: 1 0; border: round #30363D; }
-    #chat-input:focus { border: round #58A6FF; }
+    #input-area { dock: bottom; height: auto; padding: 0 0; }
+    #chat-input { 
+        margin: 1 1; 
+        background: #0D1117; 
+        color: #C9D1D9;
+        border: round #30363D;
+        height: 3; /* Giảm chiều cao input */
+    }
+    #chat-input:focus { 
+        border: round #58A6FF; 
+    }
     #file-status { height: 1; color: #888; padding-left: 1; }
     
     .hidden { display: none; }
@@ -281,9 +289,6 @@ class FourTAIApp(App):
                 "[green]Đăng nhập vào 4T AI thành công! Token đã được lưu cho lần sau.[/green]"
             )
 
-        self.mount_info_log(
-            "[bold cyan]Chào mừng bạn đến với 4T AI! Nhập tin nhắn hoặc xem các lệnh dưới đây:[/bold cyan]"
-        )
         await self.handle_client_command("/help", self.query_one("#chat-history"))
 
     def watch_attached_file_path(self, new_path: Optional[str]) -> None:

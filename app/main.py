@@ -65,17 +65,6 @@ async def get_forgetpw(request: Request):
 async def get_reset_password(request: Request):
     return templates.TemplateResponse("reset-password.html", {"request": request})
   
-# Route để render chat.html tại '/chat' với kiểm tra đăng nhập
-@app.get("/chat", response_class=HTMLResponse)
-async def get_chat(request: Request):
-    try:
-        # Kiểm tra đăng nhập
-        user_id = await verify_jwt(request)
-        # Nếu verify_jwt thành công, render trang chat
-        return templates.TemplateResponse("chat.html", {"request": request})
-    except HTTPException:
-        # Nếu chưa đăng nhập, chuyển hướng về trang login
-        return RedirectResponse(url="/", status_code=302)
 
 
 app.include_router(auth_router)
