@@ -151,7 +151,7 @@ async def send_chat_request(
         params = {"conversation_id": conversation_id} if conversation_id else {}
 
         async with http_client.stream(
-            "POST", "/chat", params=params, json=json_payload
+            "POST", "/send", params=params, json=json_payload
         ) as response:
             response.raise_for_status()
 

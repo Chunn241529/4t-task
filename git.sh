@@ -12,6 +12,7 @@ YELLOW='\033[1;33m'
 GREEN='\033[1;32m'
 CYAN='\033[1;36m'
 RED='\033[1;31m'
+BLUE='\033[1;34m'
 RESET='\033[0m'
 
 # ====== CONFIG ======
@@ -107,6 +108,74 @@ do_merge() {
     echo -e "${GREEN}✅ Merge '$current_branch' → '$target_branch' thành công${RESET}"
 }
 
+# ====== REVERT/RESET ======
+show_history() {
+    echo -e "${CYAN}📜 Lịch sử commit (10 cái gần nhất):${RESET}"
+    git log --oneline --graph -10 --color=always
+}
+
+revert_commit() {
+    local commit_hash="$1"
+    if [[ -z "$commit_hash" ]]; then
+        echo -e "${CYAN}📜 Chọn commit để revert:${RESET}"
+        show_history
+        echo -e "${CYAN}📝 Nhập commit hash:${RESET}"
+        read -r commit_hash
+    fi
+    
+    if git show "$commit_hash" &>/dev/null; then
+        git revert --no-edit "$commit_hash"
+        echo -e "${GREEN}✅ Đã revert commit: $commit_hash${RESET}"
+        echo -e "${YELLOW}📝 Revert tạo commit mới, cần push để áp dụng${RESET}"
+    else
+        echo -e "${RED}❌ Commit '$commit_hash' không tồn tại${RESET}"
+        exit 1
+    fi
+}
+
+reset_to_commit() {
+    local commit_hash="$1"
+    if [[ -z "$commit_hash" ]]; then
+        echo -e "${CYAN}📜 Chọn commit để reset về:${RESET}"
+        show_history
+        echo -e "${CYAN}📝 Nhập commit hash:${RESET}"
+        read -r commit_hash
+    fi
+
+    echo -e "${YELLOW}⚠️  CẢNH BÁO: Reset sẽ xóa các commit sau commit được chọn!${RESET}"
+    echo -e "${CYAN}Chọn loại reset:${RESET}"
+    echo -e "  ${GREEN}1. Soft${RESET} - Giữ thay đổi trong staging area"
+    echo -e "  ${GREEN}2. Mixed${RESET} - Giữ thay đổi trong working directory (mặc định)"
+    echo -e "  ${GREEN}3. Hard${RESET} - Xóa hết thay đổi"
+    echo -e "${CYAN}Lựa chọn (1/2/3):${RESET}"
+    read -r reset_type
+
+    case "$reset_type" in
+        1|"soft"|"Soft")
+            git reset --soft "$commit_hash"
+            echo -e "${GREEN}✅ Soft reset đến: $commit_hash${RESET}"
+            ;;
+        3|"hard"|"Hard")
+            echo -e "${RED}🚨 HARD RESET - Tất cả thay đổi sau commit sẽ bị XÓA!${RESET}"
+            echo -e "${CYAN}Bạn có chắc chắn? (y/N):${RESET}"
+            read -r confirm
+            if [[ "$confirm" == "y" || "$confirm" == "Y" ]]; then
+                git reset --hard "$commit_hash"
+                echo -e "${GREEN}✅ Hard reset đến: $commit_hash${RESET}"
+            else
+                echo -e "${YELLOW}⚠️  Đã hủy reset${RESET}"
+                exit 0
+            fi
+            ;;
+        *)
+            git reset --mixed "$commit_hash"
+            echo -e "${GREEN}✅ Mixed reset đến: $commit_hash${RESET}"
+            ;;
+    esac
+    
+    echo -e "${YELLOW}📝 Cần push force để áp dụng reset (chỉ khi cần thiết)${RESET}"
+}
+
 # ====== STATUS ======
 show_status() {
     echo -e "${CYAN}📂 Repo: $(basename "$(git rev-parse --show-toplevel 2>/dev/null)")${RESET}"
@@ -124,6 +193,9 @@ show_help() {
     echo -e "  ${GREEN}./git.sh branch new-branch${RESET}     - Tạo branch mới"
     echo -e "  ${GREEN}./git.sh checkout branch-name${RESET}  - Chuyển sang branch khác"
     echo -e "  ${GREEN}./git.sh merge main${RESET}            - Merge branch hiện tại → main"
+    echo -e "  ${GREEN}./git.sh history${RESET}               - Xem lịch sử commit"
+    echo -e "  ${GREEN}./git.sh revert [hash]${RESET}         - Revert commit cụ thể"
+    echo -e "  ${GREEN}./git.sh reset [hash]${RESET}          - Reset về commit cũ"
     echo -e "  ${GREEN}./git.sh status${RESET}                - Xem trạng thái nhanh"
     echo -e "  ${GREEN}./git.sh help${RESET}                  - Hiển thị hướng dẫn này"
 }
@@ -149,6 +221,15 @@ case "$1" in
         ;;
     merge)
         do_merge "$2"
+        ;;
+    history|log)
+        show_history
+        ;;
+    revert)
+        revert_commit "$2"
+        ;;
+    reset)
+        reset_to_commit "$2"
         ;;
     status)
         show_status

@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.services.device_detection import DeviceDetectionService
 from app.services.device_service import DeviceService
+from app.services.auth_service import AuthService
 from app.models import User
 from app.schemas import UserRegister, UserLogin, VerifyCode, ResetPassword
 from app.utils import (
@@ -56,11 +57,12 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
     db.refresh(new_user)
     code = generate_verify_code()
     
-    # FIX: Cũng lưu dưới dạng dictionary cho consistency
+    # FIX: Luôn lưu dưới dạng dictionary với device_id là None
+    # Device_id sẽ được tạo trong verify từ request
     verify_codes[user.email] = {
         "code": code,
-        "device_id": None,  # Đăng ký chưa có device
-        "device_info": {}
+        "device_id": None,  # Sẽ được tạo trong verify
+        "device_info": {}   # Sẽ được tạo trong verify
     }
     
     send_email(user.email, code, template_type="verification")
@@ -69,158 +71,65 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(
+async def login(
     user: UserLogin, 
     request: Request,
     db: Session = Depends(get_db), 
     response: Response = None
 ):
-    # Tìm user
-    db_user = db.query(User).filter(
-        (User.username == user.username_or_email) | 
-        (User.email == user.username_or_email)
-    ).first()
+    result = await AuthService.login_user(
+        user.username_or_email,
+        user.password,
+        request,
+        db
+    )
     
-    if not db_user:
-        logger.error(f"User not found: {user.username_or_email}")
-        raise HTTPException(400, "User not found")
-
-    # Verify password
-    try:
-        if not verify_password(user.password, db_user.password_hash):
-            logger.error(f"Invalid password for user: {user.username_or_email}")
-            raise HTTPException(400, "Invalid password")
-    except Exception as e:
-        logger.error(f"Password verification failed: {str(e)}")
-        raise HTTPException(400, "Password verification failed")
-
-    # Tự động generate device fingerprint
-    device_id = DeviceDetectionService.generate_device_fingerprint(request)
-    device_info = DeviceDetectionService.get_device_info(request)
+    if result.get("error"):
+        raise HTTPException(result["status"], result["error"])
     
-    logger.info(f"Auto-detected device: {device_id} for user: {db_user.id}")
-    logger.info(f"Device info: {device_info}")
-
-    # Check device verification
-    is_verified = DeviceService.is_device_verified(db, db_user.id, device_id)
-    
-    if is_verified:
-        # Device is verified, create token
-        token = create_jwt(db_user.id, expires_delta=timedelta(days=7))
-        
-        # Set cookie
-        if response:
-            response.set_cookie(
-                key="access_token",
-                value=f"Bearer {token}",
-                httponly=True,
-                max_age=7*24*60*60,
-                secure=True,
-                samesite="lax"
-            )
-        
-        logger.info(f"Login successful for user_id {db_user.id}, device: {device_id}")
-        return {
-            "message": "Login successful", 
-            "token": token,
-            "user_id": db_user.id
-        }
-    else:
-        # Device needs verification
-        code = generate_verify_code()
-        # FIX: Đảm bảo luôn lưu dưới dạng dictionary
-        verify_codes[db_user.email] = {
-            "code": code,
-            "device_id": device_id,
-            "device_info": device_info
-        }
-        
-        send_email(db_user.email, code, template_type="verification")
-        
-        logger.info(f"Verification required for user_id {db_user.id}, device: {device_id}")
-        return {
-            "message": "Device verification required", 
-            "user_id": db_user.id,
-            "email": db_user.email
-        }
-
-@router.post("/verify")
-def verify(
-    verify: VerifyCode, 
-    user_id: int = Query(...), 
-    request: Request = None,
-    db: Session = Depends(get_db), 
-    response: Response = None
-):
-    logger.debug(f"Verify request: user_id={user_id}, code={verify.code}")
-    
-    # Validate user
-    db_user = db.query(User).filter(User.id == user_id).first()
-    if not db_user:
-        logger.error(f"User not found for user_id: {user_id}")
-        raise HTTPException(status_code=404, detail="User not found")
-
-    # Validate verification code
-    if db_user.email not in verify_codes:
-        logger.error(f"No verification code found for email: {db_user.email}")
-        raise HTTPException(status_code=400, detail="No verification code found for this user")
-    
-    stored_data = verify_codes[db_user.email]
-    
-    # FIX: Kiểm tra kiểu dữ liệu của stored_data
-    if isinstance(stored_data, dict):
-        # Trường hợp mới: stored_data là dictionary
-        if stored_data.get("code") != verify.code:
-            logger.error(f"Invalid verification code for user_id {user_id}, provided: {verify.code}")
-            raise HTTPException(status_code=400, detail="Invalid verification code")
-        
-        device_id = stored_data.get("device_id")
-        device_info = stored_data.get("device_info", {})
-    else:
-        # Trường hợp cũ: stored_data là string (backward compatibility)
-        if stored_data != verify.code:
-            logger.error(f"Invalid verification code for user_id {user_id}, provided: {verify.code}")
-            raise HTTPException(status_code=400, detail="Invalid verification code")
-        
-        # Tạo device_id từ request nếu có
-        if request:
-            device_id = DeviceDetectionService.generate_device_fingerprint(request)
-            device_info = DeviceDetectionService.get_device_info(request)
-        else:
-            # Fallback: tạo random device_id
-            import uuid
-            device_id = f"fallback_{uuid.uuid4().hex}"
-            device_info = {}
-
-    # Add device to verified devices
-    success = DeviceService.add_verified_device(db, user_id, device_id, device_info)
-    if not success:
-        logger.error(f"Failed to add device {device_id} for user {user_id}")
-        raise HTTPException(status_code=500, detail="Failed to verify device")
-
-    # Clean up
-    del verify_codes[db_user.email]
-
-    # Create JWT token
-    token = create_jwt(db_user.id, expires_delta=timedelta(days=7))
-    
-    # Set HTTP-only cookie
-    if response:
+    # Set cookie nếu login thành công
+    if result.get("token") and response:
         response.set_cookie(
             key="access_token",
-            value=f"Bearer {token}",
+            value=f"Bearer {result['token']}",
             httponly=True,
             max_age=7*24*60*60,
             secure=True,
             samesite="lax"
         )
     
-    logger.info(f"Verification successful for user_id {user_id}, device_id: {device_id}")
-    return {
-        "message": "Device verified successfully", 
-        "token": token,
-        "user_id": user_id
-    }
+    return result
+
+@router.post("/verify")
+async def verify(
+    verify: VerifyCode, 
+    user_id: int = Query(...), 
+    request: Request = None,
+    db: Session = Depends(get_db), 
+    response: Response = None
+):
+    result = await AuthService.verify_user(
+        user_id,
+        verify.code,
+        request,
+        db
+    )
+    
+    if result.get("error"):
+        raise HTTPException(result["status"], result["error"])
+    
+    # Set cookie nếu verify thành công
+    if result.get("token") and response:
+        response.set_cookie(
+            key="access_token",
+            value=f"Bearer {result['token']}",
+            httponly=True,
+            max_age=7*24*60*60,
+            secure=True,
+            samesite="lax"
+        )
+    
+    return result
 
 
 @router.get("/get-token")

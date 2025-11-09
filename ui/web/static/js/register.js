@@ -17,7 +17,6 @@ class AIRegisterForm {
         this.tokenValue = document.getElementById('tokenValue');
         this.copyTokenButton = document.getElementById('copyToken');
         this.API_BASE_URL = 'https://living-tortoise-polite.ngrok-free.app';
-        this.deviceId = this.generateDeviceId();
         this.userId = null;
         this.init();
     }
@@ -35,17 +34,6 @@ class AIRegisterForm {
         this.passwordInput.nextElementSibling.textContent = 'Mật khẩu';
         this.confirmPasswordInput.nextElementSibling.textContent = 'Xác nhận mật khẩu';
         document.querySelector('.gender-label').textContent = 'Giới tính';
-    }
-
-    generateDeviceId() {
-        const deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-        localStorage.setItem('device_id', deviceId);
-        console.log('Generated device_id:', deviceId);
-        return deviceId;
     }
 
     bindEvents() {
@@ -233,15 +221,17 @@ class AIRegisterForm {
         }
 
         this.setLoading(true);
+
         try {
             const gender = this.genderInput.value || null;
             console.log('Sending request to /register with data:', {
                 username: this.usernameInput.value.trim(),
                 email: this.emailInput.value.trim(),
                 password: this.passwordInput.value,
-                gender: gender,
-                device_id: this.deviceId
+                gender: gender
+                // ĐÃ XÓA: device_id - backend sẽ tự detect
             });
+
             const response = await fetch(`${this.API_BASE_URL}/auth/register`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -249,10 +239,10 @@ class AIRegisterForm {
                     username: this.usernameInput.value.trim(),
                     email: this.emailInput.value.trim(),
                     password: this.passwordInput.value,
-                    gender: gender,
-                    device_id: this.deviceId
+                    gender: gender
                 })
             });
+
             const data = await response.json();
             console.log('API /register response:', data);
 
@@ -265,12 +255,15 @@ class AIRegisterForm {
                 console.error('Error: No user_id in response');
                 throw new Error('Registration succeeded but no user_id provided');
             }
+
             localStorage.setItem('user_id', this.userId);
             console.log('Registration successful, showing verification form with user_id:', this.userId);
             this.showVerificationForm();
+
         } catch (error) {
             console.error('Registration failed:', error);
             this.showError('email', error.message || 'Registration failed. Please try again.');
+        } finally {
             this.setLoading(false);
         }
     }
@@ -283,6 +276,7 @@ class AIRegisterForm {
             signupSection.style.display = 'none';
             console.log('Hid .signup-section');
         }
+
         const verificationForm = document.createElement('form');
         verificationForm.className = 'login-form';
         verificationForm.id = 'verifyForm';
@@ -291,7 +285,7 @@ class AIRegisterForm {
         verificationForm.innerHTML = `
             <div class="smart-field" data-field="code">
                 <div class="field-background"></div>
-                <input type="text" id="code" name="code" required placeholder=" ">
+                <input type="text" id="code" name="code" required placeholder=" " autocomplete="one-time-code">
                 <label for="code">Verification Code</label>
                 <div class="ai-indicator">
                     <div class="ai-pulse"></div>
@@ -313,8 +307,10 @@ class AIRegisterForm {
                 <div class="button-glow"></div>
             </button>
         `;
+
         this.form.parentElement.appendChild(verificationForm);
         verificationForm.addEventListener('submit', (e) => this.handleVerification(e));
+        
         const codeInput = verificationForm.querySelector('#code');
         if (codeInput) {
             codeInput.focus();
@@ -329,38 +325,48 @@ class AIRegisterForm {
         console.log('Handling verify submit...');
         const codeInput = e.target.querySelector('#code');
         const code = codeInput.value.trim();
+        
         if (!code) {
             this.showError('code', 'Verification code required');
             return;
         }
+
         if (!this.userId) {
             console.error('Error: No user_id available for verification');
             this.showError('code', 'User ID missing. Please try registering again.');
             return;
         }
+
         this.setLoading(true, e.target.querySelector('.neural-button'));
+
         try {
-            console.log('Sending request to /verify with data:', { code, device_id: this.deviceId, user_id: this.userId });
             const response = await fetch(`${this.API_BASE_URL}/auth/verify?user_id=${this.userId}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    code: code,
-                    device_id: this.deviceId
-                })
+                    code: code
+                    // ĐÃ XÓA: device_id - backend sẽ tự detect
+                }),
+                credentials: 'include' // QUAN TRỌNG: Để nhận cookie từ backend
             });
+
             const data = await response.json();
-            console.log('API /verify response:', data);
+            console.log('Verification response:', data);
 
             if (!response.ok) {
                 throw new Error(data.detail || 'Verification failed');
             }
 
+            // Xóa form verification
+            e.target.remove();
+            
+            // Lưu thông tin user
             localStorage.setItem('user_id', this.userId);
             localStorage.setItem('auth_token', data.token);
-            console.log('Verification successful, showing token');
+            
+            // Hiển thị thành công và chuyển hướng
             this.showSuccess(data.token);
-            e.target.remove();
+
         } catch (error) {
             console.error('Verification failed:', error);
             this.showError('code', error.message || 'Invalid verification code');
@@ -369,36 +375,35 @@ class AIRegisterForm {
     }
 
     setLoading(loading, button = this.submitButton) {
-        button.classList.toggle('loading', loading);
-        button.disabled = loading;
-        this.socialButtons.forEach(btn => {
-            btn.style.pointerEvents = loading ? 'none' : 'auto';
-            btn.style.opacity = loading ? '0.5' : '1';
-        });
+        if (button) {
+            button.classList.toggle('loading', loading);
+            button.disabled = loading;
+        }
     }
 
     showSuccess(token) {
         console.log('Showing success message with token:', token);
-        this.form.style.transform = 'scale(0.95)';
-        this.form.style.opacity = '0';
+        
+        // Ẩn tất cả các phần không cần thiết
+        const signupSection = document.querySelector('.signup-section');
+        const loginHeader = document.querySelector('.login-header');
+        
+        if (signupSection) signupSection.style.display = 'none';
+        if (loginHeader) loginHeader.style.display = 'none';
+
+        // Hiển thị success message
+        this.successMessage.classList.add('show');
+        this.tokenWidget.style.display = 'block';
+        this.tokenValue.value = token;
+        
+        localStorage.setItem('auth_token', token);
+        
+        console.log('Registration and verification completed - redirecting to chat...');
+        
+        // Tự động chuyển hướng đến chat sau 3 giây
         setTimeout(() => {
-            this.form.style.display = 'none';
-            const signupSection = document.querySelector('.signup-section');
-            const loginHeader = document.querySelector('.login-header');
-            if (signupSection) {
-                signupSection.style.display = 'none';
-                console.log('Hid .signup-section');
-            }
-            if (loginHeader) {
-                loginHeader.style.display = 'none';
-                console.log('Hid .login-header');
-            }
-            this.successMessage.classList.add('show');
-            this.tokenWidget.style.display = 'block';
-            this.tokenValue.value = token;
-            localStorage.setItem('auth_token', token);
-            console.log('Neural link established - accessing AI workspace...');
-        }, 300);
+            window.location.href = '/chat';
+        }, 3000);
     }
 }
 

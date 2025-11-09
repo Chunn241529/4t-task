@@ -1,20 +1,20 @@
 // Service Worker để cache và xử lý các request
 const CACHE_NAME = 'static-cache-v1';
 const urlsToCache = [
-  '/templates/static/css/main.css',
-  '/templates/static/css/components/head.css',
-  '/templates/static/css/components/suggestions.css',
-  '/templates/static/css/components/chat_container.css',
-  '/templates/static/css/components/prompt_container.css',
-  '/templates/static/css/components/image_preview.css',
-  '/templates/static/css/components/dropdown.css',
-  '/templates/static/css/components/iframe.css',
-  '/templates/static/css/components/search.css',
-  '/templates/static/css/components/responsive_chat.css',
-  '/templates/static/css/components/loading_bars.css',
-  '/templates/static/css/chat.css',
-  '/templates/static/js/chat_module.js',
-  '/templates/static/js/login.js',
+  '../css/main.css',
+  '../css/components/head.css',
+  '../css/components/suggestions.css',
+  '../css/components/chat_container.css',
+  '../css/components/prompt_container.css',
+  '../css/components/image_preview.css',
+  '../css/components/dropdown.css',
+  '../css/components/iframe.css',
+  '../css/components/search.css',
+  '../css/components/responsive_chat.css',
+  '../css/components/loading_bars.css',
+  '../css/chat.css',
+  '../js/chat_module.js',
+  '../js/login.js',
 ];
 
 // Install Service Worker

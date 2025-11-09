@@ -5,6 +5,7 @@ helper/chat_old.py
 helper/main_be_old.py
 helper/main_ui_old.py
 server.db
+
 .env
 faiss_indices
 # Byte-compiled / optimized / DLL files

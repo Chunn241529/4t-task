@@ -28,7 +28,7 @@ from app.services.rag_service import RAGService
 from app.services.file_service import FileService
 from app.services.chat_service import ChatService
 
-router = APIRouter(prefix="/chat", tags=["chat"])
+router = APIRouter(prefix="/send", tags=["chat"])
 rag_service = RAGService()
 file_service = FileService()
 chat_service = ChatService()
