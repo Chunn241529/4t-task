@@ -19,7 +19,8 @@ class AnimatedSpinner(Static):
 
     def on_mount(self) -> None:
         """Start the animation when the widget is mounted."""
-        self.set_interval(0.1, self.update_spinner)
+        # Tăng interval lên để giảm CPU usage
+        self.set_interval(0.15, self.update_spinner)  # từ 0.1 lên 0.15
 
     def update_spinner(self) -> None:
         """Cycle through spinner characters."""
@@ -67,25 +68,21 @@ async def send_chat_request(
         response_spinner = None
         response_spinner_container = None
         is_using_tool = False
-        # pre-request simple spinner (non-animated) shown immediately after sending
-        pre_spinner = None
         pre_spinner_container = None
-
-        # Prepare spinner/placeholders but don't mount until server signals typing
-        initial_spinner = None
-        initial_spinner_container = None
+        
+        # Biến để điều khiển tần suất cập nhật
+        last_update_time = 0
+        update_interval = 0.1  # Chỉ update mỗi 100ms
+        last_scroll_time = 0
+        scroll_interval = 0.3  # Chỉ scroll mỗi 300ms
+        
+        # Biến để lưu tool calls và search results
+        current_tool_calls = []
+        search_results_displayed = False
+        search_notification_widget = None
 
         # show a simple, non-animated spinner immediately so the UI reacts before server sends anything
-        try:
-            pre_spinner_container = Static(
-                f"  [{THINKING_COLOR}]{THINKING_PREFIX} Đang gửi...[/]"
-            )
-            pre_spinner_container.styles.display = "block"
-            pre_spinner_container.styles.padding = (0, 0, 0, 2)
-            chat_history.mount(pre_spinner_container)
-        except Exception:
-            # Don't fail the request if mounting the pre-spinner fails
-            pre_spinner_container = None
+        
 
         # If no conversation_id provided, create a new conversation first and use its id
         if conversation_id is None:
@@ -224,12 +221,27 @@ async def send_chat_request(
                     )
                     break
 
+                # Xử lý tool_calls - HIỂN THỊ SEARCH RESULTS
                 if (
                     data_chunk.get("tool_calls")
                     and isinstance(data_chunk["tool_calls"], list)
                     and data_chunk["tool_calls"]
                 ):
                     print(f"DEBUG: Tool calls detected: {data_chunk['tool_calls']}")
+                    
+                    # Lưu tool calls hiện tại
+                    current_tool_calls = data_chunk["tool_calls"]
+                    
+                    # HIỂN THỊ THÔNG BÁO ĐANG SEARCH
+                    if not search_results_displayed:
+                        search_notification_widget = Static(
+                            f"[{TOOL_COLOR}]{TOOL_PREFIX} Đang tìm kiếm thông tin...[/]"
+                        )
+                        search_notification_widget.styles.padding = (0, 0, 0, 2)
+                        chat_history.mount(search_notification_widget)
+                        chat_history.scroll_end()
+                        search_results_displayed = True
+
                     if initial_spinner_container and not is_using_tool:
                         # change spinner visual to indicate a tool/search action
                         try:
@@ -243,6 +255,35 @@ async def send_chat_request(
                         )
                         initial_spinner_container.refresh()
                         is_using_tool = True
+                    
+                    # Hiển thị search results nếu có trong tool calls
+                    for tool_call in current_tool_calls:
+                        if isinstance(tool_call, dict):
+                            tool_type = tool_call.get("type", "")
+                            tool_function = tool_call.get("function", {})
+                            
+                            # Hiển thị thông tin search
+                            if tool_type == "web_search" or tool_function.get("name") == "web_search":
+                                query = tool_function.get("arguments", {}).get("query", "")
+                                if query:
+                                    search_info = Static(
+                                        f"[dim]{TOOL_PREFIX} Tìm kiếm: \"{query}\"[/dim]"
+                                    )
+                                    search_info.styles.padding = (0, 0, 0, 2)
+                                    chat_history.mount(search_info)
+                                    chat_history.scroll_end()
+                            
+                            # Hiển thị kết quả search nếu có
+                            if "result" in tool_call or "content" in tool_call:
+                                result = tool_call.get("result") or tool_call.get("content")
+                                if result:
+                                    result_display = Static(
+                                        f"[dim]{TOOL_PREFIX} Kết quả tìm được: {result[:200]}...[/dim]"
+                                    )
+                                    result_display.styles.padding = (0, 0, 0, 2)
+                                    chat_history.mount(result_display)
+                                    chat_history.scroll_end()
+                    
                     # Create a placeholder response area so any tool output/content is shown
                     if not ai_response_md:
                         # ensure typing indicator removed
@@ -269,11 +310,27 @@ async def send_chat_request(
                         response_spinner_container.mount(response_spinner)
                     continue
 
+                # Xử lý content - THÊM HIỂN THỊ SEARCH CONTEXT và GIẢM TẦN SUẤT UPDATE
                 if data_chunk.get("content"):
                     decoded_content = (
                         data_chunk["content"].encode().decode("utf-8", errors="replace")
                     )
+                    
+                    # Nếu có search results trước đó, thêm context vào content
+                    if current_tool_calls and not accumulated_content:
+                        search_context = "\n\n_Dựa trên kết quả tìm kiếm..._\n\n"
+                        decoded_content = search_context + decoded_content
+                        current_tool_calls = []  # Reset sau khi đã sử dụng
+                        
+                        # Xóa thông báo search đang chờ
+                        if search_notification_widget:
+                            try:
+                                search_notification_widget.remove()
+                            except Exception:
+                                pass
+                    
                     accumulated_content += decoded_content
+                    
                     if not ai_response_md:
                         # ensure typing indicator / pre-request spinner removed before showing content
                         if pre_spinner_container:
@@ -305,10 +362,22 @@ async def send_chat_request(
                         response_spinner_container.styles.padding = (0, 0, 0, 2)
                         chat_history.mount(response_spinner_container)
                         response_spinner_container.mount(response_spinner)
-                    ai_response_md.update(accumulated_content)
-                    chat_history.scroll_end()
+                    
+                    # CHỈ UPDATE KHI ĐỦ THỜI GIAN - giảm giật lag
+                    current_time = asyncio.get_event_loop().time()
+                    if current_time - last_update_time >= update_interval:
+                        if ai_response_md:
+                            ai_response_md.update(accumulated_content)
+                            last_update_time = current_time
+                            
+                            # CHỈ SCROLL KHI ĐỦ THỜI GIAN
+                            if current_time - last_scroll_time >= scroll_interval:
+                                chat_history.scroll_end()
+                                last_scroll_time = current_time
+                    
                     await asyncio.sleep(0.05)
 
+        # Final update sau khi kết thúc stream
         if ai_response_md and accumulated_content:
             ai_response_md.update(accumulated_content)
             chat_history.scroll_end()
