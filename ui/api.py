@@ -29,7 +29,7 @@ class AnimatedSpinner(Static):
 
 
 # UI constants for spinner styles
-THINKING_COLOR = "cyan"
+THINKING_COLOR = "white"
 TOOL_COLOR = "yellow"
 RESPONSE_TOOL_COLOR = "green"
 THINKING_PREFIX = "💭"
@@ -81,8 +81,21 @@ async def send_chat_request(
         search_results_displayed = False
         search_notification_widget = None
 
-        # show a simple, non-animated spinner immediately so the UI reacts before server sends anything
-        
+        # HIỂN THỊ SPINNER NGAY LẬP TỨC - FIX: Luôn hiển thị spinner ban đầu
+        initial_spinner = AnimatedSpinner("⠋", classes="spinner")
+        initial_spinner.spinner_chars = THINKING_SPINNER
+        initial_spinner.current_index = 0
+        initial_spinner.styles.width = 1
+        initial_spinner.styles.height = 1
+        initial_spinner.styles.color = THINKING_COLOR
+        initial_spinner_container = Static(
+            f"  [{THINKING_COLOR}]{THINKING_PREFIX} Nhi đang suy nghĩ...[/]"
+        )
+        initial_spinner_container.styles.display = "block"
+        initial_spinner_container.styles.padding = (0, 0, 0, 2)
+        chat_history.mount(initial_spinner_container)
+        initial_spinner_container.mount(initial_spinner)
+        chat_history.scroll_end()
 
         # If no conversation_id provided, create a new conversation first and use its id
         if conversation_id is None:
@@ -129,17 +142,17 @@ async def send_chat_request(
                             )
 
                 chat_history.mount(Static(f"[red]{error_message}[/]"))
-                if pre_spinner_container:
+                if initial_spinner_container:
                     try:
-                        pre_spinner_container.remove()
+                        initial_spinner_container.remove()
                     except Exception:
                         pass
                 return None
             except Exception as e:
                 chat_history.mount(Static(f"[red]Lỗi khi tạo cuộc hội thoại: {e}[/]"))
-                if pre_spinner_container:
+                if initial_spinner_container:
                     try:
-                        pre_spinner_container.remove()
+                        initial_spinner_container.remove()
                     except Exception:
                         pass
                 return None
@@ -171,36 +184,8 @@ async def send_chat_request(
                     conversation_id = data_chunk["conversation_id"]
                     continue
 
-                # Typing indicator from server
-                if data_chunk.get("typing") is True:
-                    # remove the pre-request spinner once the server signals typing
-                    if pre_spinner_container:
-                        try:
-                            pre_spinner_container.remove()
-                        except Exception:
-                            pass
-                        pre_spinner_container = None
-
-                    if not initial_spinner_container:
-                        initial_spinner = AnimatedSpinner("⠋", classes="spinner")
-                        initial_spinner.spinner_chars = THINKING_SPINNER
-                        initial_spinner.current_index = 0
-                        initial_spinner.styles.width = 1
-                        initial_spinner.styles.height = 1
-                        initial_spinner.styles.color = THINKING_COLOR
-                        initial_spinner_container = Static(
-                            f"  [{THINKING_COLOR}]{THINKING_PREFIX} Nhi đang suy nghĩ...[/]"
-                        )
-                        initial_spinner_container.styles.display = "block"
-                        initial_spinner_container.styles.padding = (0, 0, 0, 2)
-                        chat_history.mount(initial_spinner_container)
-                        initial_spinner_container.mount(initial_spinner)
-                    continue
-
-                if data_chunk.get("typing") is False:
-                    if initial_spinner_container:
-                        initial_spinner_container.remove()
-                        initial_spinner_container = None
+                # FIX: Bỏ qua xử lý typing indicator từ server, vì chúng ta đã có spinner ban đầu
+                if data_chunk.get("typing"):
                     continue
 
                 # Done / error / tool_calls / content handling
@@ -332,24 +317,20 @@ async def send_chat_request(
                     accumulated_content += decoded_content
                     
                     if not ai_response_md:
-                        # ensure typing indicator / pre-request spinner removed before showing content
-                        if pre_spinner_container:
-                            try:
-                                pre_spinner_container.remove()
-                            except Exception:
-                                pass
-                            pre_spinner_container = None
+                        # FIX: Xóa spinner ban đầu khi bắt đầu nhận content
                         if initial_spinner_container:
                             try:
                                 initial_spinner_container.remove()
                             except Exception:
                                 pass
                             initial_spinner_container = None
+                        
                         chat_history.mount(Static(""))
                         ai_response_md = Markdown("")
                         chat_history.mount(ai_response_md)
+                        
+                        # FIX: Tạo response spinner cho content stream
                         response_spinner = AnimatedSpinner("⠋", classes="spinner")
-                        # if we were using a tool, show a different color for the response spinner
                         response_spinner.spinner_chars = THINKING_SPINNER
                         response_spinner.current_index = 0
                         response_spinner.styles.width = 1
@@ -383,23 +364,24 @@ async def send_chat_request(
             chat_history.scroll_end()
             await asyncio.sleep(0.1)
 
+        # FIX: Đảm bảo xóa tất cả spinner sau khi kết thúc
         if response_spinner_container:
             response_spinner_container.remove()
-
-        # make sure pre-request spinner is removed after finishing
-        if pre_spinner_container:
+        if initial_spinner_container:
             try:
-                pre_spinner_container.remove()
+                initial_spinner_container.remove()
             except Exception:
                 pass
 
         return conversation_id
 
     except httpx.HTTPStatusError as e:
+        # FIX: Đảm bảo xóa spinner khi có lỗi
         if initial_spinner_container:
             initial_spinner_container.remove()
         if response_spinner_container:
             response_spinner_container.remove()
+            
         # Safely read streaming response body (if any) to avoid ResponseNotRead
         body_text = ""
         try:
@@ -420,10 +402,12 @@ async def send_chat_request(
             return "auth_error"
         return None
     except httpx.ConnectError:
+        # FIX: Đảm bảo xóa spinner khi có lỗi kết nối
         if initial_spinner_container:
             initial_spinner_container.remove()
         if response_spinner_container:
             response_spinner_container.remove()
+            
         chat_history.mount(
             Static(f"[bold red]Lỗi kết nối tới {http_client.base_url}.[/]")
         )
