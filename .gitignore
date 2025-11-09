@@ -8,6 +8,8 @@ server.db
 git-completion.bash
 git.sh
 
+helper/model
+
 .env
 faiss_indices
 # Byte-compiled / optimized / DLL files
