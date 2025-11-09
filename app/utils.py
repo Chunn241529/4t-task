@@ -5,7 +5,7 @@ from email.mime.multipart import MIMEMultipart
 from typing import Optional
 from passlib.context import CryptContext
 import jwt
-from fastapi import HTTPException, Depends, Security
+from fastapi import HTTPException, Depends, Request, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
@@ -27,24 +27,33 @@ SMTP_PASS = os.getenv("SMTP_PASS")
 
 security = HTTPBearer()
 
+
 def hash_password(password: str):
     return pwd_context.hash(password)
+
 
 def verify_password(plain: str, hashed: str):
     return pwd_context.verify(plain, hashed)
 
+
 def generate_verify_code():
     return str(random.randint(100000, 999999))
+
 
 def create_reset_token(user_id: int) -> str:
     token = secrets.token_urlsafe(32)
     logger.debug(f"Created reset token for user_id {user_id}: {token}")
     return token
 
+
 def send_email(to_email: str, code: str, template_type: str = "verification"):
     # Create a multipart message
     msg = MIMEMultipart("alternative")
-    msg["Subject"] = "Your Verification Code" if template_type == "verification" else "Reset Your Password"
+    msg["Subject"] = (
+        "Your Verification Code"
+        if template_type == "verification"
+        else "Reset Your Password"
+    )
     msg["From"] = SMTP_USER
     msg["To"] = to_email
 
@@ -113,6 +122,7 @@ def send_email(to_email: str, code: str, template_type: str = "verification"):
         server.login(SMTP_USER, SMTP_PASS)
         server.sendmail(SMTP_USER, to_email, msg.as_string())
 
+
 def create_jwt(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
     if expires_delta:
         expire = datetime.utcnow() + expires_delta
@@ -122,6 +132,7 @@ def create_jwt(user_id: int, expires_delta: Optional[timedelta] = None) -> str:
     token = jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
     logger.debug(f"Created JWT for user_id {user_id}: {token}")
     return token
+
 
 def decode_jwt(token: str):
     try:
@@ -139,13 +150,30 @@ def decode_jwt(token: str):
         logger.error(f"Unexpected error decoding token: {str(e)}")
         raise HTTPException(401, f"Unexpected error: {str(e)}")
 
-def verify_jwt(credentials: HTTPAuthorizationCredentials = Security(security)):
+
+async def verify_jwt(request: Request):
     """
-    Xác thực JWT token từ header Authorization: Bearer <token>.
+    Xác thực JWT token từ header Authorization hoặc cookie.
     Trả về user_id nếu token hợp lệ.
     """
+    token = None
+    
+    # Ưu tiên lấy từ header Authorization
+    auth_header = request.headers.get("Authorization")
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+    
+    # Nếu không có trong header, thử lấy từ cookie
+    if not token:
+        cookie_token = request.cookies.get("access_token")
+        if cookie_token and cookie_token.startswith("Bearer "):
+            token = cookie_token[7:]  # Bỏ "Bearer "
+    
+    if not token:
+        logger.error("No token provided in header or cookie")
+        raise HTTPException(status_code=401, detail="Authentication required")
+    
     try:
-        token = credentials.credentials
         payload = decode_jwt(token)
         user_id = int(payload.get("sub"))
         if user_id is None:

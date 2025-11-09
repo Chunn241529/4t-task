@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter()
+router = APIRouter(prefix="/task", tags=["task"])
 bearer_scheme = HTTPBearer()
 
 
@@ -39,8 +39,8 @@ def create_task(prompt: TaskPrompt, user_id: int = Depends(get_current_user), db
         Các trường thông tin cần bóc tách:
         - "task_name": Tên chính của công việc (string).
         - "due_date": Thời gian cần hoàn thành. Nếu có, chuyển đổi về định dạng ISO 8601 (YYYY-MM-DDTHH:MM:SS). Nếu không có, dùng giá trị null.
-        - "priority": Mức độ ưu tiên. Chỉ được dùng một trong ba giá trị: "low", "medium", "high". Mặc định là "medium".
-        - "tags": Một chuỗi chứa các từ khóa, cách nhau bởi dấu phẩy (string).
+        - "priority": Mức độ ưu tiên. Chỉ được dùng một trong ba giá trị: "low", "medium", "high".
+        - "tags": Một chuỗi chứa các từ khóa quan trọng, cách nhau bởi dấu phẩy (string).
         - "original_query": Giữ nguyên câu lệnh gốc của người dùng.
 
         Hôm nay là: {current_time.strftime('%Y-%m-%d %H:%M:%S')}

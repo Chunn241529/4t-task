@@ -10,7 +10,6 @@ class AIAssistantLoginForm {
         this.tokenValue = document.getElementById('tokenValue');
         this.socialButtons = document.querySelectorAll('.social-neural');
         this.API_BASE_URL = 'https://living-tortoise-polite.ngrok-free.app';
-        this.deviceId = this.generateDeviceId();
         this.userId = null;
         this.authCode = new URLSearchParams(window.location.search).get('code');
         this.state = new URLSearchParams(window.location.search).get('state');
@@ -33,16 +32,6 @@ class AIAssistantLoginForm {
         if (this.authCode && this.state && this.redirectUri) {
             this.handleOAuthRedirect();
         }
-    }
-
-    generateDeviceId() {
-        const deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-            const r = Math.random() * 16 | 0;
-            const v = c === 'x' ? r : (r & 0x3 | 0x8);
-            return v.toString(16);
-        });
-        localStorage.setItem('device_id', deviceId);
-        return deviceId;
     }
 
     bindEvents() {
@@ -126,7 +115,7 @@ class AIAssistantLoginForm {
         const errorElement = document.getElementById(`${field}Error`);
         smartField.classList.remove('error');
         errorElement.classList.remove('show');
-        errorElement.textContent = ''; // Xóa ngay lập tức, nhưng lỗi từ server sẽ hiển thị lại nếu cần
+        errorElement.textContent = '';
     }
 
     async handleSubmit(e) {
@@ -143,28 +132,30 @@ class AIAssistantLoginForm {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                     username_or_email: this.emailInput.value.trim(),
-                    password: this.passwordInput.value,
-                    device_id: this.deviceId
-                })
+                    password: this.passwordInput.value
+                    // ĐÃ XÓA: device_id - backend sẽ tự detect
+                }),
+                credentials: 'include' // QUAN TRỌNG: Để nhận cookie từ backend
             });
             const data = await response.json();
             if (!response.ok) {
                 throw new Error(data.detail || 'Sai tài khoản hoặc mật khẩu');
             }
-            if (data.message === 'Verify needed') {
+            if (data.message === 'Device verification required' || data.message === 'Verify needed') {
                 console.log('Verification needed, showing verification form...');
                 this.userId = data.user_id;
                 localStorage.setItem('user_id', data.user_id);
                 this.showVerificationForm();
             } else if (data.token) {
                 localStorage.setItem('user_id', this.userId || '');
+                localStorage.setItem('auth_token', data.token);
                 this.showNeuralSuccess(data.token);
             } else {
                 throw new Error('Sai tài khoản hoặc mật khẩu');
             }
         } catch (error) {
             console.error('Login failed:', error);
-            this.showError('password', 'Sai tài khoản hoặc mật khẩu');
+            this.showError('password', error.message || 'Sai tài khoản hoặc mật khẩu');
             this.setLoading(false);
         }
     }
@@ -177,38 +168,22 @@ class AIAssistantLoginForm {
         }
         this.form.style.display = 'none';
 
-        // Safely handle DOM queries with detailed logging
         const neuralSocial = document.querySelector('.neural-social');
         const signupSection = document.querySelector('.signup-section');
         const authSeparator = document.querySelector('.auth-separator');
 
-        if (neuralSocial) {
-            neuralSocial.style.display = 'none';
-            console.log('Hid .neural-social');
-        } else {
-            console.warn('Element with class .neural-social not found in DOM');
-        }
-        if (signupSection) {
-            signupSection.style.display = 'none';
-            console.log('Hid .signup-section');
-        } else {
-            console.warn('Element with class .signup-section not found in DOM');
-        }
-        if (authSeparator) {
-            authSeparator.style.display = 'none';
-            console.log('Hid .auth-separator');
-        } else {
-            console.warn('Element with class .auth-separator not found in DOM');
-        }
+        if (neuralSocial) neuralSocial.style.display = 'none';
+        if (signupSection) signupSection.style.display = 'none';
+        if (authSeparator) authSeparator.style.display = 'none';
 
         const verificationForm = document.createElement('form');
         verificationForm.className = 'login-form';
-        verificationForm.style.display = 'block'; // Ensure the form is visible
-        verificationForm.style.opacity = '1'; // Ensure no opacity issues
+        verificationForm.style.display = 'block';
+        verificationForm.style.opacity = '1';
         verificationForm.innerHTML = `
             <div class="smart-field" data-field="code">
                 <div class="field-background"></div>
-                <input type="text" id="code" name="code" required placeholder=" ">
+                <input type="text" id="code" name="code" required placeholder=" " autocomplete="one-time-code">
                 <label for="code">Verification Code</label>
                 <div class="ai-indicator">
                     <div class="ai-pulse"></div>
@@ -230,6 +205,7 @@ class AIAssistantLoginForm {
                 <div class="button-glow"></div>
             </button>
         `;
+        
         console.log('Appending verification form to DOM, parent:', this.form.parentElement);
         if (this.form.parentElement) {
             this.form.parentElement.appendChild(verificationForm);
@@ -238,6 +214,7 @@ class AIAssistantLoginForm {
             console.error('Error: Parent element for loginForm not found');
             return;
         }
+        
         verificationForm.addEventListener('submit', (e) => this.handleVerification(e));
         const codeInput = verificationForm.querySelector('#code');
         if (codeInput) {
@@ -262,9 +239,10 @@ class AIAssistantLoginForm {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
-                    code: code,
-                    device_id: this.deviceId
-                })
+                    code: code
+                    // ĐÃ XÓA: device_id - backend sẽ tự detect
+                }),
+                credentials: 'include' // QUAN TRỌNG: Để nhận cookie từ backend
             });
             const data = await response.json();
             if (!response.ok) {
@@ -272,6 +250,8 @@ class AIAssistantLoginForm {
             }
             e.target.remove();
             localStorage.setItem('user_id', this.userId);
+            localStorage.setItem('auth_token', data.token);
+            
             if (this.authCode && this.state && this.redirectUri) {
                 await this.completeOAuth(data.token);
             } else {
@@ -330,39 +310,28 @@ class AIAssistantLoginForm {
             const signupSection = document.querySelector('.signup-section');
             const authSeparator = document.querySelector('.auth-separator');
             const loginHeader = document.querySelector('.login-header');
-            if (neuralSocial) {
-                neuralSocial.style.display = 'none';
-                console.log('Hid .neural-social in showNeuralSuccess');
-            } else {
-                console.warn('Element with class .neural-social not found in showNeuralSuccess');
-            }
-            if (signupSection) {
-                signupSection.style.display = 'none';
-                console.log('Hid .signup-section in showNeuralSuccess');
-            } else {
-                console.warn('Element with class .signup-section not found in showNeuralSuccess');
-            }
-            if (authSeparator) {
-                authSeparator.style.display = 'none';
-                console.log('Hid .auth-separator in showNeuralSuccess');
-            } else {
-                console.warn('Element with class .auth-separator not found in showNeuralSuccess');
-            }
-            if (loginHeader) {
-                loginHeader.style.display = 'none';
-                console.log('Hid .login-header in showNeuralSuccess');
-            } else {
-                console.warn('Element with class .login-header not found in showNeuralSuccess');
-            }
+            
+            if (neuralSocial) neuralSocial.style.display = 'none';
+            if (signupSection) signupSection.style.display = 'none';
+            if (authSeparator) authSeparator.style.display = 'none';
+            if (loginHeader) loginHeader.style.display = 'none';
+            
             this.successMessage.classList.add('show');
             this.tokenValue.value = token;
             this.tokenWidget.style.display = 'block';
-            localStorage.setItem('auth_token', token);
+            
+            // TỰ ĐỘNG CHUYỂN HƯỚNG SAU 3 GIÂY
             setTimeout(() => {
-                console.log('Neural link established - accessing AI workspace...');
-                // window.location.href = '/ai-dashboard'; // Uncomment if redirect is needed
+                console.log('Neural link established - redirecting to chat...');
+                window.location.href = '/chat';
             }, 3000);
         }, 300);
+    }
+
+    async completeOAuth(token) {
+        // Xử lý hoàn tất OAuth flow nếu cần
+        console.log('OAuth completed with token:', token);
+        this.showNeuralSuccess(token);
     }
 
     async handleOAuthRedirect() {
@@ -370,7 +339,8 @@ class AIAssistantLoginForm {
         try {
             const response = await fetch(`${this.API_BASE_URL}/auth/token?code=${this.authCode}&state=${this.state}`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include'
             });
             const data = await response.json();
             if (!response.ok) {
@@ -379,7 +349,7 @@ class AIAssistantLoginForm {
             this.showNeuralSuccess(data.token);
         } catch (error) {
             console.error('OAuth redirect failed:', error);
-            this.showError('password', 'Sai tài khoản hoặc mật khẩu');
+            this.showError('password', 'OAuth authentication failed');
         }
     }
 }

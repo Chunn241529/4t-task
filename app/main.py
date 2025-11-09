@@ -1,15 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Depends, HTTPException
 from fastapi.templating import Jinja2Templates
-from fastapi.responses import HTMLResponse
-from fastapi.requests import Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from app.db import Base, engine
 from app.models import *  # Import tất cả model để đăng ký với Base
-from app.routers import auth, task
+from app.routers.task import router as task_router
+from app.routers.auth import router as auth_router
 from app.routers.chat import router as chat_router
 from app.routers.conversations import router as conversations_router
 from app.routers.messages import router as messages_router
 from app.routers.rag import router as rag_router
+from app.utils import verify_jwt
 import uvicorn
 from fastapi.middleware.cors import CORSMiddleware
 import logging
@@ -23,7 +24,13 @@ logging.basicConfig(level=logging.DEBUG)
 # Tạo tất cả bảng trong database
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI()
+app = FastAPI(title="4T AI", version="1.0.0", description="4T AI - Your Personal Task and Chat Assistant",openapi_tags=[
+    {"name": "auth", "description": "Authentication and User Management"},
+    {"name": "task", "description": "Task Management"},
+    {"name": "chat", "description": "Chat with AI"},
+    {"name": "conversations", "description": "Conversation History Management"},
+    {"name": "messages", "description": "Message Handling"},
+    {"name": "rag", "description": "Retrieval-Augmented Generation"}])
 
 # Cấu hình Jinja2Templates
 templates = Jinja2Templates(directory="ui/web/pages")
@@ -57,10 +64,22 @@ async def get_forgetpw(request: Request):
 @app.get("/reset-password", response_class=HTMLResponse)
 async def get_reset_password(request: Request):
     return templates.TemplateResponse("reset-password.html", {"request": request})
+  
+# Route để render chat.html tại '/chat' với kiểm tra đăng nhập
+@app.get("/chat", response_class=HTMLResponse)
+async def get_chat(request: Request):
+    try:
+        # Kiểm tra đăng nhập
+        user_id = await verify_jwt(request)
+        # Nếu verify_jwt thành công, render trang chat
+        return templates.TemplateResponse("chat.html", {"request": request})
+    except HTTPException:
+        # Nếu chưa đăng nhập, chuyển hướng về trang login
+        return RedirectResponse(url="/", status_code=302)
 
-# Include routers - SỬA LẠI CÁCH IMPORT
-app.include_router(auth.router, prefix="/auth")
-app.include_router(task.router)
+
+app.include_router(auth_router)
+app.include_router(task_router)
 app.include_router(chat_router)
 app.include_router(conversations_router)
 app.include_router(messages_router)

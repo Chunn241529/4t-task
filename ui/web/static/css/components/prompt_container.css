@@ -1,0 +1,305 @@
+@import url('https://fonts.googleapis.com/css2?family=Itim&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Itim", serif;
+}
+
+:root {
+    --text-color: #e0e0e0;
+    --think-color: #666666d8;
+    --subheading-color: #bb86fc;
+    --placeholder-color: #888888;
+    --primary-color: #1a1a1a;
+    --secondary-color: #2d2d2d;
+    --secondary-hover-color: #3a3a3a;
+    --scrollbar-color: #666666;
+}
+
+/* prompt container style */
+.prompt-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: auto;
+    padding: 16px 0;
+    background: var(--primary-color);
+}
+
+.prompt-wrapper {
+    margin: 0 auto;
+    width: 100%;
+    max-width: 980px;
+    padding: 0 20px;
+}
+
+.prompt-form {
+    display: flex;
+    flex-direction: column;
+    gap: 11px;
+    border-radius: 25px;
+    background: var(--secondary-color);
+    padding: 16px;
+}
+
+.prompt-input {
+    width: 100%;
+    height: 77px;
+    min-height: 50px;
+    max-height: 500px;
+    padding: 12px 16px;
+    border: none;
+    border-radius: 12px;
+    background: var(--secondary-color);
+    color: var(--text-color);
+    font-size: 1.1rem;
+    outline: none;
+    resize: none;
+    overflow-y: auto;
+    line-height: 1.5;
+}
+
+.prompt-input::placeholder {
+    font-size: 20px;
+    color: var(--placeholder-color);
+}
+
+/* Container chứa các nút hành động */
+.prompt-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.prompt-actions-left {
+    display: flex;
+    gap: 10px;
+}
+
+.prompt-actions-left .toggle-btn {
+    min-width: 100px;
+    height: 45px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 20px;
+    background: var(--secondary-color);
+    color: var(--text-color);
+    font-size: 1rem;
+    cursor: pointer;
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+.prompt-actions-left .toggle-btn:hover {
+    background: var(--secondary-hover-color);
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+.prompt-actions-left .toggle-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+}
+
+.prompt-actions-left .toggle-btn.active {
+    background: linear-gradient(to right, #d81dfd, #8f6fff);
+    color: #fff;
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Nhóm nút bên phải: đẩy sang bên phải */
+.prompt-actions-right {
+    display: flex;
+    gap: 10px;
+    margin-left: auto;
+}
+
+/* Các nút bên phải */
+.prompt-actions-right button {
+    width: 45px;
+    height: 45px;
+    border: none;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    color: var(--text-color);
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Hiệu ứng hover cho nút bên phải */
+.prompt-actions-right button:hover {
+    background: var(--secondary-hover-color);
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+/* Hiệu ứng active cho nút bên phải */
+.prompt-actions-right button:active {
+    transform: translateY(2px);
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown {
+    min-width: 120px;
+    height: 45px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 20px;
+    background: var(--secondary-color);
+    color: var(--text-color);
+    font-size: 1rem;
+    cursor: pointer;
+    box-shadow: 0 8px 10px rgba(0, 0, 0, 0.2);
+    margin-left: 5px;
+    appearance: none;
+    background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" class="bi bi-chevron-down" viewBox="0 0 16 16"><path fill-rule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"/></svg>');
+    background-repeat: no-repeat;
+    background-position: right 10px center;
+    padding-right: 30px;
+}
+
+.dropdown:hover {
+    background: var(--secondary-hover-color);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+}
+
+.dropdown:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 4px rgba(60, 60, 60, 0.3);
+}
+
+.dropdown option {
+    background: var(--secondary-color);
+    color: var(--text-color);
+}
+
+#send-prompt-btn {
+    background: linear-gradient(to right, #d81dfd, #8f6fff);
+    font-size: 1.8rem;
+    color: #fff;
+    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.1s ease;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+}
+
+#send-prompt-btn:hover {
+    background: linear-gradient(to right, #e877ff, #8f6fff);
+    box-shadow: 0 6px 8px rgba(0, 0, 0, 0.3);
+}
+
+#send-prompt-btn:active {
+    transform: translateY(2px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+/* btn stop response */
+.prompt-form #stop-response-btn {
+    display: none;
+    background: red;
+    font-size: 1.8rem;
+    color: #fff;
+}
+
+.prompt-form #stop-response-btn:hover {
+    background: rgb(238, 103, 103);
+}
+
+.copy-btn {
+    background-color: transparent;
+    border: none;
+    padding: 4px;
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #aaa;
+    transition: color 0.3s ease;
+}
+
+.copy-btn:hover {
+    color: #333;
+    /* Màu icon khi hover */
+}
+
+.loading-bars {
+    display: flex;
+    gap: 4px;
+}
+
+.loading-bars span {
+    width: 1000px;
+    height: 15px;
+    background-color: var(--scrollbar-color);
+    display: inline-block;
+    animation: wave 1.2s infinite ease-in-out;
+}
+
+.loading-bars span:nth-child(1) {
+    animation-delay: 0s;
+}
+
+
+.loading-bars span:nth-child(2) {
+    animation-delay: 0.2s;
+}
+
+.loading-bars span:nth-child(3) {
+    animation-delay: 0.4s;
+}
+
+
+
+@keyframes wave {
+
+    0%,
+    80%,
+    100% {
+        transform: scaleY(1);
+    }
+
+    40% {
+        transform: scaleY(1.8);
+    }
+}
+
+.file-preview-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 8px;
+    align-items: center;
+}
+.file-preview-item {
+    display: flex;
+    align-items: center;
+    background: var(--secondary-color);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 1rem;
+    color: var(--text-color);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    position: relative;
+}
+.file-preview-item .file-icon {
+    font-size: 1.5rem;
+    margin-right: 6px;
+}
+.file-preview-item .file-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.file-preview-item .remove-file-btn {
+    background: none;
+    border: none;
+    color: #ff6b6b;
+    font-size: 1.2rem;
+    margin-left: 8px;
+    cursor: pointer;
+}

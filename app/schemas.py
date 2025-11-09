@@ -11,11 +11,9 @@ class UserRegister(BaseModel):
 class UserLogin(BaseModel):
     username_or_email: str
     password: str
-    device_id: str
 
 class VerifyCode(BaseModel):
     code: str
-    device_id: str
 
 class ResetPassword(BaseModel):
     reset_token: str

@@ -1,7 +1,7 @@
 from sqlalchemy import Column, Integer, String, JSON, DateTime, ForeignKey
 from sqlalchemy.orm import declarative_base
-from app.db import Base  # Import Base từ db.py để đăng ký model
-from datetime import datetime
+from sqlalchemy.sql import func  # SỬA: Sử dụng func.now() thay vì datetime.utcnow
+from app.db import Base
 
 class User(Base):
     __tablename__ = "users"
@@ -10,7 +10,7 @@ class User(Base):
     email = Column(String, unique=True, nullable=False)
     password_hash = Column(String, nullable=False)
     verified_devices = Column(JSON, nullable=False, default=[])
-    gender = Column(String, nullable=True)  # Thêm cột gender, có thể null
+    gender = Column(String, nullable=True)
 
 class Task(Base):
     __tablename__ = "tasks"
@@ -21,13 +21,13 @@ class Task(Base):
     priority = Column(String, nullable=False, default="medium")
     tags = Column(String, nullable=False, default="")
     original_query = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())  # SỬA: Dùng func.now()
 
 class Conversation(Base):
     __tablename__ = "conversations"
     id = Column(Integer, primary_key=True)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=func.now())  # SỬA: Dùng func.now()
 
 class ChatMessage(Base):
     __tablename__ = "chat_messages"
@@ -36,5 +36,5 @@ class ChatMessage(Base):
     conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False)
     content = Column(String, nullable=False)
     role = Column(String, nullable=False)
-    timestamp = Column(DateTime, default=datetime.utcnow)
+    timestamp = Column(DateTime, default=func.now())  # SỬA: Dùng func.now()
     embedding = Column(JSON)

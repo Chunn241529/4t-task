@@ -1,0 +1,344 @@
+@import url('https://fonts.googleapis.com/css2?family=Itim&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Itim", serif;
+}
+
+:root {
+    --text-color: #e0e0e0;
+    --think-color: #666666d8;
+    --subheading-color: #bb86fc;
+    --placeholder-color: #888888;
+    --primary-color: #1a1a1a;
+    --secondary-color: #2d2d2d;
+    --secondary-hover-color: #3a3a3a;
+    --scrollbar-color: #666666;
+}
+
+/* chat container style */
+.container .chats-container {
+    display: flex;
+    gap: 20px;
+    flex-direction: column;
+    padding-bottom: 50px; /* Thêm padding bottom để tránh bị prompt-container che */
+}
+
+.chats-container .message {
+    display: flex;
+    gap: 11px;
+    align-items: center;
+}
+
+.chats-container .bot-message .avatar {
+    height: 43px;
+    width: 43px;
+    flex-shrink: 0;
+    align-self: flex-start;
+    margin-right: -7px;
+    border-radius: 50%;
+    background: var(--secondary-color);
+    border: 1px solid var(--secondary-hover-color);
+}
+
+.chats-container .bot-message .modelName {
+    align-self: center;
+    margin-left: 10px;
+    font-size: 2rem;
+    font-family: "Itim", serif;
+    color: var(--text-color);
+}
+
+.chats-container .message .message-text {
+    padding: 8px 16px;
+    word-wrap: break-word;
+    max-width: 90%;
+    font-size: 18px;
+    white-space: pre-line;
+    font-family: "Itim", serif;
+    color: var(--text-color);
+}
+
+/* Image in message */
+.chats-container .message .message-text .message-image {
+    max-width: 300px;
+    max-height: 400px;
+    width: auto;
+    height: auto;
+    object-fit: contain;
+    border-radius: 8px;
+    margin-top: 10px;
+    display: block;
+    animation: fadeIn 0.5s ease-in-out;
+    cursor: pointer; /* Add cursor to indicate clickable */
+}
+
+/* Download link for image */
+.chats-container .message .message-text .download-image {
+    margin-top: 8px;
+    color: var(--subheading-color);
+    text-decoration: none;
+    font-size: 16px;
+    transition: color 0.3s ease-in-out;
+    position: relative;
+}
+
+.chats-container .message .message-text .download-image:hover {
+    color: #007bff;
+    text-decoration: underline;
+}
+
+.chats-container .message .message-text .download-image:hover::after {
+    content: "Nhấn để tải ảnh về máy";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--secondary-color);
+    color: var(--text-color);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+/* Tiêu đề (Markdown: # H1, ## H2, ## H3) */
+.chats-container .message .message-text h1 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 8px 0;
+}
+
+.chats-container .message .message-text h2 {
+    font-size: 1.3em;
+    font-weight: bold;
+    margin: 6px 0;
+}
+
+.chats-container .message .message-text h3 {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 5px 0;
+}
+
+/* Định dạng đoạn văn bản */
+.chats-container .message .message-text p {
+    margin: 4px 0;
+}
+
+/* In đậm và in nghiêng */
+.chats-container .message .message-text strong {
+    font-weight: bold;
+}
+
+.chats-container .message .message-text em {
+    font-style: italic;
+}
+
+/* Danh sách (unordered - `* item`) */
+.chats-container .message .message-text ul {
+    margin: 4px 0;
+    padding-left: 30px;
+}
+
+.chats-container .message .message-text ul li {
+    list-style-type: disc;
+    margin-bottom: 2px;
+}
+
+/* Danh sách (ordered - `1. item`) */
+.chats-container .message .message-text ol {
+    margin: 4px 0;
+    padding-left: 30px;
+}
+
+.chats-container .message .message-text ol li {
+    list-style-type: decimal;
+    margin-bottom: 2px;
+}
+
+/* Định dạng blockquote (`> quote`) */
+.chats-container .message .message-text blockquote {
+    border-left: 4px solid var(--text-color);
+    padding-left: 30px;
+    margin: 6px 0;
+    font-style: italic;
+    color: #777;
+}
+
+/* Link (`[text](url)`) */
+.chats-container .message .message-text a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.chats-container .message .message-text a:hover {
+    text-decoration: underline;
+}
+
+.chats-container .message .thinking-container .thinking-output {
+    padding: 3px 16px 3px 20px;
+    margin-left: 8px;
+    word-wrap: break-word;
+    max-width: 90%;
+    white-space: pre-line;
+    font-family: "Itim", serif;
+    color: var(--think-color);
+    display: inline-block;
+    vertical-align: middle;
+    box-sizing: border-box;
+}
+
+.thinking-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+/* Tiêu đề (Markdown: # H1, ## H2, ## H3) */
+.chats-container .message .thinking-container .thinking-output h1 {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 8px 0;
+}
+
+.chats-container .message .thinking-container .thinking-output h2 {
+    font-size: 1.3em;
+    font-weight: bold;
+    margin: 6px 0;
+}
+
+.chats-container .message .thinking-container .thinking-output h3 {
+    font-size: 1.2em;
+    font-weight: bold;
+    margin: 5px 0;
+}
+
+/* Định dạng đoạn văn bản */
+.chats-container .message .thinking-container .thinking-output p {
+    margin: 4px 0;
+}
+
+/* In đậm và in nghiêng */
+.chats-container .message .thinking-container .thinking-output strong {
+    font-weight: bold;
+}
+
+.chats-container .message .thinking-container .thinking-output em {
+    font-style: italic;
+}
+
+/* Danh sách (unordered - `* item`) */
+.chats-container .message .thinking-container .thinking-output ul {
+    margin: 4px 0;
+    padding-left: 30px;
+}
+
+.chats-container .message .thinking-container .thinking-output ul li {
+    list-style-type: disc;
+    margin-bottom: 2px;
+}
+
+/* Danh sách (ordered - `1. item`) */
+.chats-container .message .thinking-container .thinking-output ol {
+    margin: 4px 0;
+    padding-left: 30px;
+}
+
+.chats-container .message .thinking-container .thinking-output ol li {
+    list-style-type: decimal;
+    margin-bottom: 2px;
+}
+
+/* Định dạng blockquote (`> quote`) */
+.chats-container .message .thinking-container .thinking-output blockquote {
+    border-left: 4px solid var(--text-color);
+    padding-left: 30px;
+    margin: 6px 0;
+    font-style: italic;
+    color: #777;
+}
+
+/* Link (`[text](url)`) */
+.chats-container .message .thinking-container .thinking-output a {
+    color: #007bff;
+    text-decoration: none;
+}
+
+.chats-container .message .thinking-container .thinking-output a:hover {
+    text-decoration: underline;
+}
+
+.chats-container .bot-message {
+    margin: 9px auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+}
+
+.chats-container .user-message {
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.chats-container .user-message .message-text {
+    padding: 12px 16px;
+    max-width: 75%;
+    border-radius: 13px 13px 3px 13px;
+    background: var(--secondary-color);
+}
+
+.chats-container .bot-message .avatar {
+    flex: 0 0 auto;
+}
+
+.chats-container .bot-message .thinking-container,
+.chats-container .bot-message .message-text {
+    flex: 0 0 100%;
+    margin-left: calc(43px + 11px);
+}
+
+/* CSS cho hiệu ứng */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.thinking-container {
+    animation: fadeIn 0.5s ease-in-out;
+    transition: color 0.3s ease-in-out;
+}
+
+/* Styles for syntax highlighting */
+code {
+    background-color: #6868688f;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.829);
+    padding: 2px 4px;
+    border-radius: 4px;
+    font-family: "Itim", serif;
+}
+
+/* Styles for tables */
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+table th,
+table td {
+    padding: 10px;
+    border: 1px solid var(--text-color);
+    text-align: left;
+}
+
+table th {
+    background-color: var(--primary-color);
+}

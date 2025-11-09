@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Itim&display=swap');
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Itim", serif;
+}
+
+:root {
+    --text-color: #e0e0e0;
+    --think-color: #666666d8;
+    --subheading-color: #bb86fc;
+    --placeholder-color: #888888;
+    --primary-color: #1a1a1a;
+    --secondary-color: #2d2d2d;
+    --secondary-hover-color: #3a3a3a;
+    --scrollbar-color: #666666;
+}
+
+body {
+    color: var(--text-color);
+    background: var(--primary-color);
+}
+
+.container {
+    overflow-y: auto;
+    padding: 32px 0 60px;
+    max-height: calc(100vh - 127px);
+    scrollbar-color: var(--scrollbar-color) transparent;
+}
+
+.container :where(.app-header, .suggestions, .message, .prompt-wrapper) {
+    margin: 0 auto;
+    width: 100%;
+    padding: 0 20px;
+    max-width: 980px;
+}
+
+
+.warning-text {
+    bottom: 0;
+    width: 100%;
+    padding-top: 10px;
+    text-align: center;
+    color: var(--think-color);
+    font-size: 0.7rem;
+    font-weight: bold;
+}
