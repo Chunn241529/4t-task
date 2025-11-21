@@ -24,6 +24,8 @@ def chat(
     db: Session = Depends(get_db)
 ):
     """Endpoint chính cho chat với RAG và file processing"""
+    
+    # ĐƠN GIẢN HÓA: Gọi thẳng chat service, không cần load RAG files ở đây
     return ChatService.chat_with_rag(
         message=message,
         file=file,

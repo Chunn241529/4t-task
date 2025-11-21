@@ -19,7 +19,7 @@ __pycache__/
 
 # C extensions
 *.so
-
+app/services/img_gen_service.json
 # Distribution / packaging
 .Python
 build/

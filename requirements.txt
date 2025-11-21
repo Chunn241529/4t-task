@@ -22,3 +22,9 @@ rank_bm25
 python-telegram-bot
 numpy
 user-agents
+nest_asyncio 
+
+openpyxl 
+tiktoken  
+pyarrow
+sentence_transformers

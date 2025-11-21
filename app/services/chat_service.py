@@ -1,4 +1,5 @@
 import base64
+from glob import glob
 from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 import ollama
@@ -49,9 +50,8 @@ class ChatService:
             db, user_id, conversation_id
         )
         
-        # Auto-load RAG files cho conversation mới
-        if is_new_conversation:
-            RAGService.load_rag_files_to_conversation(user_id, conversation.id)
+        # ĐƠN GIẢN HÓA: Luôn đảm bảo RAG files được load cho conversation
+        ChatService._ensure_rag_files_loaded(user_id, conversation.id)
         
         # Xử lý file và context
         file_context = FileService.process_file_for_chat(file, user_id, conversation.id)
@@ -83,26 +83,67 @@ class ChatService:
         )
     
     @staticmethod
+    def _ensure_rag_files_loaded(user_id: int, conversation_id: int):
+        """Đảm bảo RAG files được load cho conversation - đơn giản và hiệu quả"""
+        try:
+            # Kiểm tra xem đã có FAISS index chưa
+            index_path = RAGService.get_faiss_path(user_id, conversation_id)
+            
+            # Nếu chưa có index file hoặc file rỗng, load RAG files
+            if not os.path.exists(index_path) or os.path.getsize(index_path) < 100:
+                logger.info(f"Loading RAG files for conversation {conversation_id}")
+                
+                # Load RAG files đơn giản, không dùng parallel processing phức tạp
+                rag_files = []
+                supported_patterns = [
+                    os.path.join(RAGService.rag_files_dir, "*.pdf"),
+                    os.path.join(RAGService.rag_files_dir, "*.txt"), 
+                    os.path.join(RAGService.rag_files_dir, "*.docx"),
+                    os.path.join(RAGService.rag_files_dir, "*.xlsx"),
+                    os.path.join(RAGService.rag_files_dir, "*.xls"),
+                    os.path.join(RAGService.rag_files_dir, "*.csv"),
+                    os.path.join(RAGService.rag_files_dir, "*.parquet")
+                ]
+                
+                for pattern in supported_patterns:
+                    rag_files.extend(glob.glob(pattern))
+                
+                if not rag_files:
+                    logger.info(f"No RAG files found in {RAGService.rag_files_dir}")
+                    return
+                
+                # Load từng file một (đơn giản, không parallel)
+                for file_path in rag_files:
+                    try:
+                        with open(file_path, "rb") as f:
+                            file_content = f.read()
+                        
+                        filename = os.path.basename(file_path)
+                        logger.info(f"Processing RAG file: {filename}")
+                        
+                        RAGService.process_file_for_rag(file_content, user_id, conversation_id, filename)
+                        
+                    except Exception as e:
+                        logger.error(f"Error loading RAG file {file_path}: {e}")
+                        continue
+                
+                logger.info(f"Finished loading {len(rag_files)} RAG files for conversation {conversation_id}")
+            else:
+                logger.debug(f"RAG files already loaded for conversation {conversation_id}")
+                
+        except Exception as e:
+            logger.error(f"Error ensuring RAG files loaded: {e}")
+    
+    @staticmethod
     def _build_system_prompt(xung_ho: str, current_time: str) -> str:
         """Xây dựng system prompt"""
         return f"""
         Bạn là Nhi - một AI nói chuyện tự nhiên như con người, rất thông minh, trẻ con, dí dỏm và thân thiện.
         Bạn tự xưng Nhi và người dùng là {xung_ho}. Ví dụ: "Nhi rất vui được giúp {xung_ho}!"  
-
-
-        **Khi cần gọi tool:**
-        Trả đúng định dạng JSON, không thêm lời giải thích:
-        {{
-            "tool_calls": [
-                {{
-                    "type": "function",
-                    "function": {{
-                        "name": "web_search",
-                        "arguments": "{{\\"query\\": \\"A well-optimized English query for web search\\"}}"
-                    }}
-                }}
-        }}
-
+        
+        **QUY TẮC QUAN TRỌNG:**
+        1. KHI GỌI WEB SEARCH: LUÔN dùng query TIẾNG ANH tối ưu
+        2. KHI TRẢ LỜI: LUÔN dùng TIẾNG VIỆT tự nhiên, thân thiện
         """
     
     @staticmethod
@@ -149,42 +190,36 @@ class ChatService:
         # Xác định level_think dựa trên độ phức tạp của câu hỏi
         level_think = ChatService._determine_think_level(effective_query, eval_result)
         
+        # LUÔN trả về tools cho các model text (giống chat_old.py)
+        tools = [web_search, web_fetch]
+        
         if eval_result["needs_logic"]:
-            return "4T-Logic", [web_search, web_fetch], False
+            return "4T-Logic", tools, False
         elif eval_result["needs_reasoning"]:
-            return "4T-Reasoning", [web_search, web_fetch], level_think
+            return "4T", tools, level_think
         else:
-            return "4T-S", [web_search, web_fetch], False
+            return "4T-S", tools, False
     
     @staticmethod
     def _determine_think_level(query: str, eval_result: Dict[str, bool]) -> Union[str, bool]:
         """
         Xác định mức độ think dựa trên độ phức tạp của câu hỏi
-        
-        Returns:
-            Union[str, bool]: 'low', 'medium', 'high', False, True
         """
-        # Mặc định là 'medium' cho các câu hỏi thông thường
         if not eval_result["needs_logic"] and not eval_result["needs_reasoning"]:
             return 'medium'
         
-        # Phân tích độ dài và độ phức tạp của câu hỏi
         query_length = len(query)
         has_complex_keywords = any(keyword in query.lower() for keyword in [
             'so sánh', 'phân tích', 'đánh giá', 'giải thích chi tiết', 
             'tại sao', 'như thế nào', 'mối quan hệ', 'ưu nhược điểm'
         ])
         
-        # Câu hỏi rất phức tạp: dài và có từ khóa phức tạp
         if query_length > 200 and has_complex_keywords:
             return 'high'
-        # Câu hỏi phức tạp: có logic hoặc reasoning
         elif eval_result["needs_logic"] or eval_result["needs_reasoning"]:
             return 'high'
-        # Câu hỏi trung bình
         elif query_length > 100:
             return 'medium'
-        # Câu hỏi đơn giản
         else:
             return 'low'
     
@@ -239,7 +274,7 @@ class ChatService:
         level_think: Union[str, bool],
         db: Session
     ):
-        """Generate streaming response với level_think"""
+        """Generate streaming response với level_think - FIXED để LLM nhận được tool results"""
         def generate_stream():
             yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
             full_response = []
@@ -268,9 +303,10 @@ class ChatService:
                     "num_predict": -1,
                 }
 
-                # Tool call handling với vòng lặp
+                # FIX: Vòng lặp để xử lý multiple tool calls và cho LLM tiếp tục với tool results
                 max_iterations = 5
                 current_iteration = 0
+                has_tool_calls = False
                 
                 while current_iteration < max_iterations:
                     current_iteration += 1
@@ -284,13 +320,21 @@ class ChatService:
                         tools=tools,
                         stream=True,
                         options=options,
-                        think=level_think  # Thêm level_think vào đây
+                        think=level_think
                     )
+                    
+                    # Biến để theo dõi nếu có tool calls
+                    iteration_has_tool_calls = False
                     
                     for chunk in stream:
                         if "message" in chunk:
                             msg_chunk = chunk["message"]
+                            
+                            # Xử lý tool calls
                             if "tool_calls" in msg_chunk and msg_chunk["tool_calls"]:
+                                iteration_has_tool_calls = True
+                                has_tool_calls = True
+                                
                                 serialized_tool_calls = [
                                     {
                                         "function": {
@@ -300,73 +344,117 @@ class ChatService:
                                     } for tc in msg_chunk["tool_calls"]
                                 ]
                                 yield f"data: {json.dumps({'tool_calls': serialized_tool_calls})}\n\n"
+                                logger.debug(f"Yielded tool_calls: {serialized_tool_calls}")
+                                
                                 for tc in msg_chunk["tool_calls"]:
                                     if "function" in tc:
                                         tool_calls.append(tc)
+                            
+                            # Xử lý content - CHỈ yield content nếu không có tool calls
                             if "content" in msg_chunk and msg_chunk["content"]:
-                                delta = msg_chunk["content"].encode('utf-8').decode('utf-8', errors='replace')
+                                delta = msg_chunk["content"]
                                 current_message["content"] += delta
-                                full_response.append(delta)
-                                yield f"data: {json.dumps({'content': delta})}\n\n"
+                                
+                                # QUAN TRỌNG: Chỉ yield content nếu không có tool calls trong iteration này
+                                if not iteration_has_tool_calls:
+                                    full_response.append(delta)
+                                    yield f"data: {json.dumps({'content': delta})}\n\n"
                     
+                    # Thêm message vào history
                     messages.append(current_message)
                     
-                    # Xử lý tool calls
+                    # Xử lý tool calls và tiếp tục conversation
                     if tool_calls:
+                        logger.info(f"Processing {len(tool_calls)} tool calls")
+                        
                         for tool_call in tool_calls:
-                            ChatService._handle_tool_call(tool_call, messages)
+                            function_name = tool_call['function']['name']
+                            args_str = tool_call['function']['arguments']
+                            
+                            try:
+                                # Parse arguments
+                                if isinstance(args_str, str):
+                                    args = json.loads(args_str)
+                                else:
+                                    args = args_str
+                                    
+                                # Gọi hàm tương ứng
+                                if function_name == 'web_search':
+                                    logger.info(f"Executing web_search with query: {args.get('query', '')}")
+                                    result = executor.submit(web_search, **args).result()
+                                elif function_name == 'web_fetch':
+                                    logger.info(f"Executing web_fetch with url: {args.get('url', '')}")
+                                    result = executor.submit(web_fetch, **args).result()
+                                else:
+                                    result = f"Tool {function_name} not found"
+                                    
+                                # Thêm tool result vào messages để model tiếp tục
+                                tool_msg = {
+                                    'role': 'tool',
+                                    'content': str(result)[:8000],  # Giới hạn độ dài
+                                    'tool_name': function_name
+                                }
+                                messages.append(tool_msg)
+                                logger.info(f"Tool {function_name} completed, result length: {len(str(result))}")
+                                
+                            except Exception as e:
+                                logger.error(f"Error executing tool {function_name}: {e}")
+                                tool_msg = {
+                                    'role': 'tool',
+                                    'content': f"Error: {str(e)}",
+                                    'tool_name': function_name
+                                }
+                                messages.append(tool_msg)
+                        
+                        # CONTINUE: Tiếp tục vòng lặp để model xử lý tool results
+                        logger.info("Continuing to next iteration with tool results")
                         continue
                     else:
+                        # BREAK: Thoát khi không có tool calls
+                        logger.info("No tool calls, breaking loop")
                         break
+                
+                # FIX QUAN TRỌNG: Nếu có tool calls, cho LLM generate final response với tool results
+                if has_tool_calls and len(messages) > 2:
+                    logger.info("Generating final response with tool results")
                     
+                    # Gọi Ollama lần cuối để generate final response với tool results
+                    final_stream = ollama.chat(
+                        model=model_name,
+                        messages=messages,
+                        stream=True,
+                        options=options
+                    )
+                    
+                    for chunk in final_stream:
+                        if "message" in chunk and "content" in chunk["message"]:
+                            delta = chunk["message"]["content"]
+                            current_message["content"] += delta
+                            full_response.append(delta)
+                            yield f"data: {json.dumps({'content': delta})}\n\n"
+                
                 yield f"data: {json.dumps({'done': True})}\n\n"
-                executor.submit(
-                    ChatService._save_conversation_after_stream,
-                    ''.join(full_response),
-                    effective_query,
-                    user_id,
-                    conversation_id,
-                    db
-                ).result()
+                
+                # Lưu conversation trong background
+                if full_response:
+                    final_response = ''.join(full_response)
+                    logger.info(f"Saving conversation with {len(final_response)} characters")
+                    executor.submit(
+                        ChatService._save_conversation_after_stream,
+                        final_response,
+                        effective_query,
+                        user_id,
+                        conversation_id,
+                        db
+                    )
+                else:
+                    logger.warning("No content generated in stream response")
                 
             except Exception as e:
                 logger.error(f"Lỗi trong stream generation: {e}")
                 yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
         return StreamingResponse(generate_stream(), media_type="text/event-stream")
-    
-    @staticmethod
-    def _handle_tool_call(tool_call: Dict[str, Any], messages: List[Dict[str, Any]]):
-        """Xử lý tool call và thêm result vào messages"""
-        function_name = tool_call['function']['name']
-        args_str = tool_call['function']['arguments']
-        
-        try:
-            args = json.loads(args_str) if isinstance(args_str, str) else args_str
-            
-            if function_name == 'web_search':
-                result = executor.submit(web_search, **args).result()
-            elif function_name == 'web_fetch':
-                result = executor.submit(web_fetch, **args).result()
-            else:
-                result = f"Tool {function_name} not found"
-            
-            tool_msg = {
-                'role': 'tool',
-                'content': str(result)[:10000],
-                'tool_name': function_name
-            }
-            messages.append(tool_msg)
-            logger.debug(f"Tool {function_name} result: {str(result)[:200]}...")
-            
-        except Exception as e:
-            logger.error(f"Error executing tool {function_name}: {e}")
-            tool_msg = {
-                'role': 'tool',
-                'content': f"Error: {str(e)}",
-                'tool_name': function_name
-            }
-            messages.append(tool_msg)
     
     @staticmethod
     def _save_conversation_after_stream(
@@ -376,9 +464,9 @@ class ChatService:
         conversation_id: int,
         db: Session
     ):
-        """Lưu conversation sau khi stream kết thúc"""
-        if not full_response:
-            logger.error("Empty response from stream")
+        """Lưu conversation sau khi stream kết thúc - FIXED"""
+        if not full_response or not full_response.strip():
+            logger.warning("Empty or whitespace-only response from stream, skipping save")
             return
         
         try:
