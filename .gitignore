@@ -7,7 +7,7 @@ helper/main_ui_old.py
 server.db
 git-completion.bash
 git.sh
-
+rag_system.db
 helper/model
 token.txt
 .env
