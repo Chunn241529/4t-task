@@ -3,6 +3,7 @@ from fastapi import HTTPException, UploadFile
 from fastapi.responses import StreamingResponse
 import ollama
 from ollama import web_search, web_fetch
+from app.services.tool_service import ToolService
 import json
 import os
 from datetime import datetime
@@ -23,7 +24,7 @@ from app.services.file_service import FileService
 from app.services.rag_service import RAGService
 
 logger = logging.getLogger(__name__)
-executor = ThreadPoolExecutor(max_workers=4)
+tool_service = ToolService()
 
 
 SEARCH_TRIGGERS = [
@@ -82,11 +83,6 @@ class ChatService:
         logger.info(
             f"Using conversation {conversation.id}, is_new: {is_new_conversation}"
         )
-
-        # ĐẢM BẢO RAG FILES ĐƯỢC LOAD
-        logger.info("Ensuring RAG files are loaded...")
-        rag_loaded = RAGService._ensure_rag_loaded(user_id, conversation.id)
-        logger.info(f"RAG loaded: {rag_loaded}")
 
         # Xử lý file và context
         file_context = FileService.process_file_for_chat(file, user_id, conversation.id)
@@ -200,85 +196,91 @@ class ChatService:
         if file and FileService.is_image_file(file):
             return "qwen3-vl:235b-cloud", None, False
 
-        eval_result = ChatService._evaluate_user_input(effective_query)
-        logger.debug(f"Input evaluation: {eval_result}")
+        # Evaluate using keywords instead of LLM
+        input_lower = effective_query.lower()
 
-        level_think = ChatService._determine_think_level(effective_query, eval_result)
-        tools = [web_search, web_fetch]
+        # Logic keywords (math, coding, technical)
+        logic_keywords = [
+            "code",
+            "python",
+            "java",
+            "c++",
+            "javascript",
+            "sql",
+            "lập trình",
+            "thuật toán",
+            "bug",
+            "error",
+            "fix",
+            "debug",
+            "toán",
+            "tính toán",
+            "công thức",
+            "phương trình",
+            "logic",
+            "function",
+            "class",
+            "api",
+        ]
+        needs_logic = any(k in input_lower for k in logic_keywords)
 
-        if eval_result["needs_logic"]:
+        # Reasoning keywords (analysis, comparison, explanation)
+        reasoning_keywords = [
+            "tại sao",
+            "vì sao",
+            "như thế nào",
+            "giải thích",
+            "phân tích",
+            "so sánh",
+            "đánh giá",
+            "ý nghĩa",
+            "nguyên nhân",
+            "hệ quả",
+            "suy luận",
+            "quan điểm",
+            "nhận xét",
+            "ưu điểm",
+            "nhược điểm",
+            "khác nhau",
+            "giống nhau",
+        ]
+        needs_reasoning = any(k in input_lower for k in reasoning_keywords)
+
+        # Determine think level based on keywords and length
+        level_think = "low"
+        if needs_reasoning or needs_logic:
+            if (
+                len(effective_query) > 200
+                or "chi tiết" in input_lower
+                or "sâu" in input_lower
+            ):
+                level_think = "high"
+            else:
+                level_think = "medium"
+
+        tools = tool_service.get_tools()
+
+        if needs_logic:
             return "4T-Logic", tools, False
-        elif eval_result["needs_reasoning"]:
+        elif needs_reasoning:
             return "4T", tools, level_think
         else:
             return "4T-S", tools, False
 
     @staticmethod
-    def _determine_think_level(
-        query: str, eval_result: Dict[str, bool]
-    ) -> Union[str, bool]:
-        """Xác định mức độ think"""
-        if not eval_result["needs_logic"] and not eval_result["needs_reasoning"]:
-            return "medium"
-
-        query_length = len(query)
-        has_complex_keywords = any(
-            keyword in query.lower()
-            for keyword in [
-                "so sánh",
-                "phân tích",
-                "đánh giá",
-                "giải thích chi tiết",
-                "tại sao",
-                "như thế nào",
-                "mối quan hệ",
-                "ưu nhược điểm",
-                "phân tích",
-                "suy luận",
-                "suy nghĩ",
-                "think",
-                "reasoning",
-            ]
+    def _get_conversation_history(
+        db: Session, conversation_id: int, limit: int = 20
+    ) -> List[Dict[str, str]]:
+        """Retrieve conversation history from database"""
+        messages = (
+            db.query(ModelChatMessage)
+            .filter(ModelChatMessage.conversation_id == conversation_id)
+            .order_by(ModelChatMessage.timestamp.asc())
+            .limit(limit)
+            .all()
         )
 
-        if query_length > 2000 and has_complex_keywords:
-            return "high"
-        elif eval_result["needs_logic"] or eval_result["needs_reasoning"]:
-            return "medium"
-        elif query_length > 100:
-            return "medium"
-        else:
-            return "low"
-
-    @staticmethod
-    def _evaluate_user_input(input_text: str) -> Dict[str, bool]:
-        """Đánh giá input của người dùng"""
-        try:
-            eval_prompt = f"""
-            Đánh giá input người dùng và trả về JSON:
-            - "needs_logic": true nếu liên quan đến toán học, lập trình, logic phức tạp
-            - "needs_reasoning": true nếu yêu cầu suy luận sâu, phân tích phức tạp
-            Input: {input_text}
-            Chỉ trả về JSON: {{"needs_logic": bool, "needs_reasoning": bool}}
-            """
-            response = ollama.chat(
-                model="4T-Evaluate:latest",
-                messages=[{"role": "system", "content": eval_prompt}],
-                stream=False,
-                options={"temperature": 0, "top_p": 0},
-            )
-            try:
-                result = json.loads(response["message"]["content"])
-                return {
-                    "needs_logic": bool(result.get("needs_logic", False)),
-                    "needs_reasoning": bool(result.get("needs_reasoning", False)),
-                }
-            except json.JSONDecodeError:
-                logger.error("Lỗi khi parse JSON từ đánh giá input")
-                return {"needs_logic": False, "needs_reasoning": False}
-        except Exception as e:
-            logger.error(f"Lỗi khi đánh giá input: {e}")
-            return {"needs_logic": False, "needs_reasoning": False}
+        return [{"role": msg.role, "content": msg.content} for msg in messages]
 
     @staticmethod
     def _build_full_prompt(rag_context: str, effective_query: str, file) -> str:
@@ -323,10 +325,22 @@ class ChatService:
         def generate_stream():
             yield f"data: {json.dumps({'conversation_id': conversation_id})}\n\n"
             full_response = []
+
+            # Get RECENT conversation history (last 10 messages for context)
+            recent_history = ChatService._get_conversation_history(
+                db, conversation_id, limit=10
+            )
+
+            # Build messages with recent history
             messages: List[Dict[str, Any]] = [
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": full_prompt},
+                {"role": "system", "content": system_prompt}
             ]
+
+            # Add recent history for conversation flow
+            messages.extend(recent_history)
+
+            # Add current user message
+            messages.append({"role": "user", "content": full_prompt})
 
             if file and FileService.is_image_file(file):
                 file_bytes = FileService.get_file_bytes(file)
@@ -389,13 +403,46 @@ class ChatService:
                                 for tc in msg_chunk["tool_calls"]:
                                     if "function" in tc:
                                         tool_calls.append(tc)
+
                             if "content" in msg_chunk and msg_chunk["content"]:
                                 delta = msg_chunk["content"]
                                 current_message["content"] += delta
 
-                                if not iteration_has_tool_calls:
-                                    full_response.append(delta)
-                                    yield f"data: {json.dumps({'content': delta})}\n\n"
+                            # Handle thinking/reasoning content
+                            # Check in message chunk
+                            if (
+                                "reasoning_content" in msg_chunk
+                                and msg_chunk["reasoning_content"]
+                            ):
+                                delta = msg_chunk["reasoning_content"]
+                                yield f"data: {json.dumps({'thinking': delta})}\n\n"
+                            elif "think" in msg_chunk and msg_chunk["think"]:
+                                delta = msg_chunk["think"]
+                                yield f"data: {json.dumps({'thinking': delta})}\n\n"
+                            elif "reasoning" in msg_chunk and msg_chunk["reasoning"]:
+                                delta = msg_chunk["reasoning"]
+                                yield f"data: {json.dumps({'thinking': delta})}\n\n"
+                            elif "thought" in msg_chunk and msg_chunk["thought"]:
+                                delta = msg_chunk["thought"]
+                                yield f"data: {json.dumps({'thinking': delta})}\n\n"
+
+                        # Check top-level chunk for thinking fields (some models might put it here)
+                        if "reasoning_content" in chunk and chunk["reasoning_content"]:
+                            delta = chunk["reasoning_content"]
+                            yield f"data: {json.dumps({'thinking': delta})}\n\n"
+                        elif "think" in chunk and chunk["think"]:
+                            delta = chunk["think"]
+                            yield f"data: {json.dumps({'thinking': delta})}\n\n"
+
+                        # Always stream the raw chunk if it's not a tool call
+                        if not iteration_has_tool_calls:
+                            # Convert ChatResponse to dict if needed
+                            chunk_data = (
+                                chunk.model_dump()
+                                if hasattr(chunk, "model_dump")
+                                else chunk
+                            )
+                            yield f"data: {json.dumps(chunk_data)}\n\n"
 
                     messages.append(current_message)
 
@@ -403,60 +450,70 @@ class ChatService:
                         for tool_call in tool_calls:
                             function_name = tool_call["function"]["name"]
                             args_str = tool_call["function"]["arguments"]
-                            try:
-                                if isinstance(args_str, str):
-                                    args = json.loads(args_str)
-                                else:
-                                    args = args_str
 
+                            # Execute tool via service
+                            execution_result = tool_service.execute_tool(
+                                function_name, args_str
+                            )
+
+                            if execution_result["error"]:
+                                tool_msg = {
+                                    "role": "tool",
+                                    "content": f"Error: {execution_result['error']}",
+                                    "tool_name": function_name,
+                                }
+                            else:
+                                result = execution_result["result"]
+
+                                # Handle search specific logic (sending status)
                                 if function_name == "web_search":
-                                    result = executor.submit(
-                                        web_search, **args
-                                    ).result()
-                                elif function_name == "web_fetch":
-                                    result = executor.submit(web_fetch, **args).result()
-                                else:
-                                    result = f"Tool {function_name} not found"
+                                    try:
+                                        # Parse args for query
+                                        if isinstance(args_str, str):
+                                            args = json.loads(args_str)
+                                        else:
+                                            args = args_str
+
+                                        result_data = (
+                                            json.loads(result)
+                                            if isinstance(result, str)
+                                            else result
+                                        )
+                                        result_count = (
+                                            len(result_data.get("results", []))
+                                            if isinstance(result_data, dict)
+                                            else 0
+                                        )
+
+                                        yield f"data: {json.dumps({'search_complete': {'query': args.get('query', ''), 'count': result_count}})}\n\n"
+                                    except Exception as e:
+                                        logger.debug(
+                                            f"Could not parse search results for count: {e}"
+                                        )
 
                                 tool_msg = {
                                     "role": "tool",
                                     "content": str(result)[:8000],
                                     "tool_name": function_name,
                                 }
-                                messages.append(tool_msg)
 
-                            except Exception as e:
-                                logger.error(
-                                    f"Error executing tool {function_name}: {e}"
-                                )
-                                tool_msg = {
-                                    "role": "tool",
-                                    "content": f"Error: {str(e)}",
-                                    "tool_name": function_name,
-                                }
-                                messages.append(tool_msg)
+                            messages.append(tool_msg)
 
                         continue
                     else:
                         break
 
-                # Final response với tool results
-                if has_tool_calls and len(messages) > 2:
-                    final_stream = ollama.chat(
-                        model=model_name,
-                        messages=messages,
-                        stream=True,
-                        options=options,
-                    )
+                # Stream raw chunk
+                chunk_data = (
+                    chunk.model_dump() if hasattr(chunk, "model_dump") else chunk
+                )
+                yield f"data: {json.dumps(chunk_data)}\n\n"
 
-                    for chunk in final_stream:
-                        if "message" in chunk and "content" in chunk["message"]:
-                            delta = chunk["message"]["content"]
-                            current_message["content"] += delta
-                            full_response.append(delta)
-                            yield f"data: {json.dumps({'content': delta})}\n\n"
-
-                yield f"data: {json.dumps({'done': True})}\n\n"
+                # Accumulate content for saving
+                if "message" in chunk_data:
+                    msg_chunk = chunk_data["message"]
+                    if "content" in msg_chunk and msg_chunk["content"]:
+                        full_response.append(msg_chunk["content"])
 
                 if full_response:
                     executor.submit(

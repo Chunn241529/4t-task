@@ -6,11 +6,12 @@ from PySide6.QtWidgets import QWidget, QLabel, QHBoxLayout
 from PySide6.QtStateMachine import QStateMachine, QState
 from PySide6.QtGui import QFont
 
+
 class SpinnerLogic:
     def __init__(self, parent):
         self.parent = parent
         self.state_machine = QStateMachine(parent)
-        self.spinner_chars = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        self.spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         self.spinner_index = 0
         self.spinner_timer = None
         self.spinner_label = None
@@ -26,9 +27,15 @@ class SpinnerLogic:
         responding_state = QState()
 
         # Kiểm tra tín hiệu trước khi thêm transition
-        if not hasattr(self.parent, 'toSearch') or not hasattr(self.parent, 'toThinking') or \
-           not hasattr(self.parent, 'toResponding') or not hasattr(self.parent, 'toIdle'):
-            logger.error("One or more signals (toSearch, toThinking, toResponding, toIdle) not defined in parent")
+        if (
+            not hasattr(self.parent, "toSearch")
+            or not hasattr(self.parent, "toThinking")
+            or not hasattr(self.parent, "toResponding")
+            or not hasattr(self.parent, "toIdle")
+        ):
+            logger.error(
+                "One or more signals (toSearch, toThinking, toResponding, toIdle) not defined in parent"
+            )
             return
 
         # Transitions sử dụng Signal từ ChatWindow
@@ -36,8 +43,10 @@ class SpinnerLogic:
         idle_state.addTransition(self.parent.toThinking, thinking_state)
         search_state.addTransition(self.parent.toThinking, thinking_state)
         search_state.addTransition(self.parent.toResponding, responding_state)
+        search_state.addTransition(self.parent.toIdle, idle_state)
         thinking_state.addTransition(self.parent.toSearch, search_state)
         thinking_state.addTransition(self.parent.toResponding, responding_state)
+        thinking_state.addTransition(self.parent.toIdle, idle_state)
         responding_state.addTransition(self.parent.toIdle, idle_state)
         responding_state.addTransition(self.parent.toSearch, search_state)
         responding_state.addTransition(self.parent.toThinking, thinking_state)
@@ -93,10 +102,10 @@ class SpinnerLogic:
         display_text = text
         if query:
             # Xử lý query để hiển thị trên một dòng và giới hạn độ dài
-            one_line_query = query.replace('\n', ' ').replace('\r', '').strip()
+            one_line_query = query.replace("\n", " ").replace("\r", "").strip()
             max_length = 50  # Số ký tự tối đa
             if len(one_line_query) > max_length:
-                one_line_query = one_line_query[:max_length - 3] + '...'
+                one_line_query = one_line_query[: max_length - 3] + "..."
             display_text = f"Đang tìm kiếm {one_line_query}"
 
         self.parent.ui.scroll_area.setVisible(True)
@@ -108,7 +117,9 @@ class SpinnerLogic:
         self.overlay.setStyleSheet("background: transparent;")
         self.overlay.setGeometry(0, 0, scroll_width, 50)
         self.overlay.raise_()
-        print(f"Spinner overlay created, geometry: {self.overlay.geometry().width()}x{self.overlay.geometry().height()}, visible: {self.overlay.isVisible()}")
+        print(
+            f"Spinner overlay created, geometry: {self.overlay.geometry().width()}x{self.overlay.geometry().height()}, visible: {self.overlay.isVisible()}"
+        )
 
         # Container widget cho spinner và text
         container = QWidget(self.overlay)
@@ -118,7 +129,9 @@ class SpinnerLogic:
 
         # Spinner label
         self.spinner_label = QLabel(self.spinner_chars[self.spinner_index])
-        self.spinner_label.setStyleSheet("color: #61afef; font-size: 16px; font-family: 'Courier New', monospace;")
+        self.spinner_label.setStyleSheet(
+            "color: #61afef; font-size: 16px; font-family: 'Courier New', monospace;"
+        )
         container_layout.addWidget(self.spinner_label)
 
         # Text label
@@ -133,11 +146,16 @@ class SpinnerLogic:
         container.show()
 
         # Điều chỉnh kích thước overlay dựa trên text
-        text_width = self.text_label.fontMetrics().boundingRect(self.text_label.text()).width() + 20
+        text_width = (
+            self.text_label.fontMetrics().boundingRect(self.text_label.text()).width()
+            + 20
+        )
         spinner_width = self.spinner_label.width()
         total_width = max(text_width + spinner_width + 20, scroll_width)
         self.overlay.setGeometry(0, 0, total_width, 50)
-        print(f"Text label shown with text: {display_text}, visible: {self.text_label.isVisible()}")
+        print(
+            f"Text label shown with text: {display_text}, visible: {self.text_label.isVisible()}"
+        )
 
         # Khởi tạo timer nếu chưa có
         if not self.spinner_timer:
@@ -185,15 +203,22 @@ class SpinnerLogic:
     def update_search_text(self, query: str):
         """Cập nhật text cho spinner khi có query mới"""
         if self.text_label and query:
-            one_line_query = query.replace('\n', ' ').replace('\r', '').strip()
+            one_line_query = query.replace("\n", " ").replace("\r", "").strip()
             max_length = 50
             if len(one_line_query) > max_length:
-                one_line_query = one_line_query[:max_length - 3] + '...'
+                one_line_query = one_line_query[: max_length - 3] + "..."
             display_text = f"Đang tìm kiếm {one_line_query}"
             self.text_label.setText(display_text)
-            text_width = self.text_label.fontMetrics().boundingRect(self.text_label.text()).width() + 20
+            text_width = (
+                self.text_label.fontMetrics()
+                .boundingRect(self.text_label.text())
+                .width()
+                + 20
+            )
             spinner_width = self.spinner_label.width() if self.spinner_label else 0
-            total_width = max(text_width + spinner_width + 20, self.parent.ui.scroll_area.width())
+            total_width = max(
+                text_width + spinner_width + 20, self.parent.ui.scroll_area.width()
+            )
             if self.overlay:
                 self.overlay.setGeometry(0, 0, total_width, 50)
                 print(f"Search text updated: {display_text}")

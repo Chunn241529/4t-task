@@ -287,20 +287,22 @@ class RAGService:
         try:
             logger.info(f"Getting RAG context for query: {effective_query[:100]}...")
 
-            # Đảm bảo RAG đã được load
-            if not RAGService._ensure_rag_loaded(user_id, conversation_id):
-                logger.warning("RAG not loaded, returning empty context")
+            # Load FAISS index directly
+            index, exists = RAGService.load_faiss(user_id, conversation_id)
+
+            # If index doesn't exist or is empty, try to load RAG files
+            if not exists or index.ntotal == 0:
+                logger.info("Index missing or empty, attempting to load RAG files...")
+                RAGService.load_rag_files_to_conversation(user_id, conversation_id)
+                index, exists = RAGService.load_faiss(user_id, conversation_id)
+
+            if not exists or index.ntotal == 0:
+                logger.warning("FAISS index is empty after loading attempt")
                 return ""
 
             query_emb = EmbeddingService.get_embedding(effective_query, max_length=512)
             if np.all(query_emb == 0):
                 logger.warning("Failed to generate query embedding")
-                return ""
-
-            index, exists = RAGService.load_faiss(user_id, conversation_id)
-
-            if index.ntotal == 0:
-                logger.warning("FAISS index is empty")
                 return ""
 
             logger.info(f"FAISS index has {index.ntotal} vectors")

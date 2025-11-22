@@ -105,13 +105,16 @@ def main():
     # Ẩn splash
     splash.finish(chat_window)
 
-    # Hiển thị thông báo với icon FourT
-    msg_box = QMessageBox()
-    msg_box.setWindowTitle("FourT Assistant")
-    msg_box.setText("FourT Assistant đang chạy ở chế độ nền trong khay hệ thống.")
-    # msg_box.setIconPixmap(create_FourT_pixmap(64, 64))  # Icon nhỏ cho QMessageBox
-    msg_box.setStandardButtons(QMessageBox.Ok)
-    msg_box.exec()
+    # Show chat window immediately
+    chat_window.center_and_show()
+
+    # # Hiển thị thông báo với  FourT
+    # msg_box = QMessageBox()
+    # msg_box.setWindowTitle("FourT Assistant")
+    # msg_box.setText("FourT Assistant đang chạy ở chế độ nền trong khay hệ thống.")
+    # # msg_box.setIconPixmap(create_FourT_pixmap(64, 64))  # Icon nhỏ cho QMessageBox
+    # msg_box.setStandardButtons(QMessageBox.Ok)
+    # msg_box.exec()
 
     print("Ứng dụng đã khởi động. Click vào icon trên khay hệ thống.")
     sys.exit(app.exec())

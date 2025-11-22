@@ -282,52 +282,6 @@ class UIComponents:
             font-size: 14px;
             border: none;
         }
-        #responseDisplay a {
-            color: #61afef;
-            text-decoration: none;
-        }
-        #responseDisplay a:hover {
-            text-decoration: underline;
-        }
-        #responseDisplay table {
-            border-collapse: collapse;
-            margin: 1em 0;
-            width: 100%;
-            border: 1px solid #705050;
-        }
-        #responseDisplay th, #responseDisplay td {
-            border: 1px solid #705050;
-            padding: 8px;
-            text-align: left;
-        }
-        #responseDisplay th {
-            background-color: #3a3b45;
-            color: #e0e0e0;
-            font-weight: bold;
-        }
-        #responseDisplay td {
-            background-color: #2c2d35;
-        }
-        .codehilite {
-            background: #2c2d35;
-            border-radius: 5px;
-            padding: 10px;
-            font-size: 13px;
-            margin: 1em 0;
-        }
-        .codehilite pre {
-            margin: 0;
-            white-space: pre-wrap;
-        }
-        .codehilite .k { color: #c678dd; }
-        .codehilite .s2 { color: #98c379; }
-        .codehilite .nf { color: #61afef; }
-        .codehilite .mi { color: #d19a66; }
-        .codehilite .n { color: #abb2bf; }
-        .codehilite .p { color: #abb2bf; }
-        .codehilite .o { color: #56b6c2; }
-        .codehilite .nb { color: #d19a66; }
-        .codehilite .c1 { color: #7f848e; font-style: italic; }
         #screenshotButton {
             background-color: rgba(28, 29, 35, 0.85);
             border: 1px solid #505050;
@@ -361,8 +315,68 @@ class UIComponents:
         QScrollBar:vertical {
             width: 0px;
         }
+        QScrollBar:horizontal {
+            height: 0px;
+        }
         """
         self.parent.setStyleSheet(stylesheet)
+
+        # Apply HTML-specific stylesheet for QTextBrowser content
+        html_stylesheet = """
+        a {
+            color: #61afef;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+        }
+        table {
+            border-collapse: collapse;
+            margin: 1em 0;
+            width: auto;
+            min-width: 100%;
+            border: 1px solid #606060;
+        }
+        th, td {
+            border: 1px solid #606060;
+            padding: 8px;
+            text-align: left;
+            white-space: nowrap;
+        }
+        th {
+            background-color: #3a3b45;
+            color: #e0e0e0;
+            font-weight: bold;
+        }
+        td {
+            background-color: #2c2d35;
+        }
+        .codehilite {
+            background: #2c2d35;
+            border-radius: 5px;
+            padding: 10px;
+            font-size: 13px;
+            margin: 1em 0;
+        }
+        .codehilite pre {
+            margin: 0;
+            white-space: pre-wrap;
+        }
+        .codehilite .k { color: #c678dd; }
+        .codehilite .s2 { color: #98c379; }
+        .codehilite .nf { color: #61afef; }
+        .codehilite .mi { color: #d19a66; }
+        .codehilite .n { color: #abb2bf; }
+        .codehilite .p { color: #abb2bf; }
+        .codehilite .o { color: #56b6c2; }
+        .codehilite .nb { color: #d19a66; }
+        .codehilite .c1 { color: #7f848e; font-style: italic; }
+        """
+        self.response_display.document().setDefaultStyleSheet(html_stylesheet)
+
+        # Disable scrollbars on response_display (content) to hide them
+        self.response_display.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.response_display.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
 
     def mouse_press_event(self, event):
         if event.button() == Qt.LeftButton:
@@ -538,10 +552,14 @@ class UIComponents:
         current_height = self.parent.height()
 
         if current_height != final_height:
+            # Avoid starting new animation if one is already running
             if (
                 self.height_animation
                 and self.height_animation.state() == QPropertyAnimation.Running
             ):
+                # Only restart if the target is significantly different
+                if abs(self.height_animation.endValue().height() - final_height) < 10:
+                    return
                 self.height_animation.stop()
 
             self.height_animation = QPropertyAnimation(self.parent, b"geometry")

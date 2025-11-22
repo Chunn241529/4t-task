@@ -1,40 +1,35 @@
 import ollama
+from typing import List, Dict
 
-def test_ollama_think_low():
+
+def stream_chat(model: str, messages: List[Dict[str, str]]) -> str:
     """
-    Test 4T với think="low" (tắt thinking gần hoàn toàn, stream nhanh).
+    Stream chat với Ollama và accumulate full content từ raw chunks.
+    Trả về full content sau khi stream kết thúc.
     """
-    messages = [
-        {"role": "user", "content": "Tại sao bầu trời màu xanh?"}
-    ]
+    full_content = ""
+    print("Bắt đầu streaming... (Raw chunks sẽ được in từng phần)")
 
-    try:
-        print("✅ **Bắt đầu stream với think=low...**")
-        print("\n📝 **Response (nhanh, không thinking sâu):**\n")
+    stream = ollama.chat(model=model, messages=messages, stream=True)  # Bật streaming
 
-        stream = ollama.chat(
-            model="4T",
-            messages=messages,
-            stream=True,
-            think="low"  # ← Key fix: Dùng string "low" thay vì False
-        )
+    for chunk in stream:
+        # Raw chunk (dict tương đương JSON)
+        print(f"{len(full_content.split())}: {chunk}")
 
-        full_response = ""
-        for chunk in stream:
-            content = chunk['message']['content']
-            if content:  # Bỏ qua chunk rỗng
-                print(content, end="", flush=True)
-                full_response += content
+        delta = chunk["message"]["content"]
+        if delta:  # Chỉ nếu có nội dung mới
+            full_content += delta
+            print(f"Delta (real-time): {delta}", end="", flush=True)  # Hiển thị dần
+            print()  # Newline cho chunk tiếp theo
 
-        print(f"\n\n{'='*50}")
-        print("✅ **Stream hoàn tất nhanh!**")
-        print(f"🔢 Độ dài: {len(full_response)} ký tự")
-        print(f"⏱️ Ước tính: Ít delay hơn so với medium")
+    print("\n--- Streaming kết thúc ---")
+    return full_content
 
-    except Exception as e:
-        print(f"\n❌ **Lỗi:** {e}")
-        print("💡 Kiểm tra: ollama serve chạy? Model pull? Thử think='medium' để so sánh.")
 
-# Chạy
+# Sử dụng
 if __name__ == "__main__":
-    test_ollama_think_low()
+    MODEL = "4T"  # Đảm bảo model đã pull
+    messages = [{"role": "user", "content": "xin chào"}]
+
+    result = stream_chat(MODEL, messages)
+    print(f"\nFull Accumulated Content:\n{result}")

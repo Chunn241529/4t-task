@@ -19,9 +19,13 @@ class ChatLogic:
         self.thinking_buffer = ""
         self.full_thinking_md = ""
         self.buffer_timer = QTimer()
-        self.buffer_timer.setInterval(5)
+        self.buffer_timer.setInterval(
+            30
+        )  # Increased from 5ms to 30ms to reduce CPU usage
         self.buffer_timer.timeout.connect(self._flush_buffer)
         self.parent.user_scrolling = False
+        self.last_resize_time = 0
+        self.resize_throttle_ms = 100  # Throttle resizing to every 100ms
 
     def setup_connections(self) -> None:
         self.parent.ui.send_stop_button.send_clicked.connect(self.send_prompt)
@@ -104,6 +108,7 @@ class ChatLogic:
         self.ollama_thread.chunk_received.connect(self._buffer_chunk)
         self.ollama_thread.thinking_received.connect(self._buffer_thinking)
         self.ollama_thread.search_started.connect(self.on_search_started)
+        self.ollama_thread.search_complete.connect(self.on_search_complete)
         self.ollama_thread.search_sources.connect(self.on_search_sources)
         self.ollama_thread.content_started.connect(self.on_content_started)
         self.ollama_thread.image_processing.connect(self.on_image_processing)
@@ -128,6 +133,7 @@ class ChatLogic:
         chat_display = self.parent.ui.response_display
 
         if cmd == "/help":
+            chat_display.clear()
             help_text = """
             <h3>📚 HƯỚNG DẪN SỬ DỤNG FourT AI</h3>
             <ul>
@@ -345,16 +351,42 @@ class ChatLogic:
 
         self.chunk_buffer = ""
         self.thinking_buffer = ""
-        # Chỉ tăng height vừa đủ để thấy toggle button (nếu có)
-        self.parent.ui.adjust_window_height(staged=True)
+
+        # Throttle window resizing during streaming
+        import time
+
+        current_time = time.time() * 1000
+        if current_time - self.last_resize_time > self.resize_throttle_ms:
+            self.parent.ui.adjust_window_height(staged=True)
+            self.last_resize_time = current_time
 
     def on_search_started(self, query: str):
-        """Xử lý khi bắt đầu tìm kiếm"""
-        self.parent.spinner_logic.start_search()  # Khởi tạo spinner trước
+        """Display search started message"""
+        # Hide spinner so message is visible
+        self.parent.spinner_logic.reset_to_idle()
+
         if query and query.strip():
-            self.parent.spinner_logic.update_search_text(
-                query.strip()
-            )  # Cập nhật text sau
+            search_msg = (
+                f'<div style="'
+                f"background-color: rgba(255, 255, 255, 0.05); "
+                f"color: white; "
+                f"font-weight: bold; "
+                f"padding: 15px 20px; "
+                f"border: 1px solid rgba(255, 255, 255, 0.2); "
+                f"border-bottom: 4px solid rgba(0, 0, 0, 0.5); "
+                f"border-radius: 12px; "
+                f"margin: 15px 0; "
+                f"font-size: 14px;"
+                f'">'
+                f"🔍 Đang tìm kiếm: {query.strip()}..."
+                f"</div>"
+            )
+            self.parent.ui.response_display.append(search_msg)
+
+    def on_search_complete(self, data: dict):
+        """Display search completion message"""
+        # User requested to remove "Found X results" message
+        pass
 
     def on_search_sources(self, sources_json: str):
         try:
