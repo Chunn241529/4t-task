@@ -9,7 +9,7 @@ git-completion.bash
 git.sh
 
 helper/model
-
+token.txt
 .env
 faiss_indices
 # Byte-compiled / optimized / DLL files
