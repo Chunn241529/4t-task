@@ -10,7 +10,13 @@ from textual.binding import Binding
 import webbrowser
 
 from config import API_BASE_URL, TOKEN_FILE_PATH
-from api import delete_all_conversation, delete_current_conversation, send_chat_request, fetch_conversations, load_conversation_history
+from api import (
+    delete_all_conversation,
+    delete_current_conversation,
+    send_chat_request,
+    fetch_conversations,
+    load_conversation_history,
+)
 
 # Cấu hình logging vào file trong thư mục logs/
 log_dir = os.path.join(os.path.dirname(__file__), "logs")
@@ -150,26 +156,28 @@ class FourTAIApp(App):
         self.http_client: Optional[httpx.AsyncClient] = None
 
     def compose(self) -> ComposeResult:
-      yield Header()
-      with Vertical(id="login-area"):
-          with Vertical(classes="login-container"):
-              yield Static("🔐 4T AI LOGIN", classes="login-title")
-              yield Static("Nhập token để bắt đầu", classes="login-instruction")
-              with Horizontal(classes="token-input-row"):
-                  yield Input(
-                      placeholder="Dán Access Token...", 
-                      password=True, 
-                      id="token-input"
-                  )
-                  yield Button("Lấy token", id="get-token-button")
-              yield Button("🚀 Đăng nhập", id="login-submit-button", classes="login-button")
-      yield ScrollableContainer(id="chat-history")
-      with Vertical(id="input-area", classes="hidden"):
-          yield Static("", id="file-status")
-          yield Input(
-              placeholder="Nhập tin nhắn hoặc /help để xem lệnh...", id="chat-input"
-          )
-      yield Footer()
+        yield Header()
+        with Vertical(id="login-area"):
+            with Vertical(classes="login-container"):
+                yield Static("🔐 4T AI LOGIN", classes="login-title")
+                yield Static("Nhập token để bắt đầu", classes="login-instruction")
+                with Horizontal(classes="token-input-row"):
+                    yield Input(
+                        placeholder="Dán Access Token...",
+                        password=True,
+                        id="token-input",
+                    )
+                    yield Button("Lấy token", id="get-token-button")
+                yield Button(
+                    "🚀 Đăng nhập", id="login-submit-button", classes="login-button"
+                )
+        yield ScrollableContainer(id="chat-history")
+        with Vertical(id="input-area", classes="hidden"):
+            yield Static("", id="file-status")
+            yield Input(
+                placeholder="Nhập tin nhắn hoặc /help để xem lệnh...", id="chat-input"
+            )
+        yield Footer()
 
     async def on_mount(self) -> None:
         """Kiểm tra token đã lưu khi khởi động."""
@@ -187,85 +195,85 @@ class FourTAIApp(App):
 
     # Các phương thức còn lại giữ nguyên...
     async def on_button_pressed(self, event: Button.Pressed) -> None:
-      if event.button.id == "get-token-button":
-          url_open = os.getenv(
-              "API_URL", "https://living-tortoise-polite.ngrok-free.app"
-          )
-          webbrowser.open(url_open)
-      elif event.button.id == "login-submit-button":
-          # Lấy token từ input và xử lý đăng nhập
-          token_input = self.query_one("#token-input")
-          token = token_input.value.strip()
-          if not token:
-              return
-          await self.process_token_login(token)
-          
+        if event.button.id == "get-token-button":
+            url_open = os.getenv(
+                "API_URL", "https://living-tortoise-polite.ngrok-free.app"
+            )
+            webbrowser.open(url_open)
+        elif event.button.id == "login-submit-button":
+            # Lấy token từ input và xử lý đăng nhập
+            token_input = self.query_one("#token-input")
+            token = token_input.value.strip()
+            if not token:
+                return
+            await self.process_token_login(token)
+
     async def process_token_login(self, token: str) -> None:
-      """Xử lý đăng nhập với token từ nút submit."""
-      try:
-          # Tạo thư mục chứa TOKEN_FILE_PATH nếu chưa tồn tại
-          token_dir = os.path.dirname(TOKEN_FILE_PATH)
-          if token_dir:
-              os.makedirs(token_dir, exist_ok=True)
-          with open(TOKEN_FILE_PATH, "w") as f:
-              f.write(token)
-      except PermissionError as e:
-          self.mount_info_log(
-              f"[red]Lỗi quyền truy cập: Không thể ghi file token tại {TOKEN_FILE_PATH}. Vui lòng kiểm tra quyền thư mục.[/red]"
-          )
-          return
-      except OSError as e:
-          self.mount_info_log(
-              f"[red]Lỗi khi lưu token tại {TOKEN_FILE_PATH}: {e}[/red]"
-          )
-          return
-      except Exception as e:
-          self.mount_info_log(f"[red]Lỗi không xác định khi lưu token: {e}[/red]")
-          return
-      await self.perform_login(token)
+        """Xử lý đăng nhập với token từ nút submit."""
+        try:
+            # Tạo thư mục chứa TOKEN_FILE_PATH nếu chưa tồn tại
+            token_dir = os.path.dirname(TOKEN_FILE_PATH)
+            if token_dir:
+                os.makedirs(token_dir, exist_ok=True)
+            with open(TOKEN_FILE_PATH, "w") as f:
+                f.write(token)
+        except PermissionError as e:
+            self.mount_info_log(
+                f"[red]Lỗi quyền truy cập: Không thể ghi file token tại {TOKEN_FILE_PATH}. Vui lòng kiểm tra quyền thư mục.[/red]"
+            )
+            return
+        except OSError as e:
+            self.mount_info_log(
+                f"[red]Lỗi khi lưu token tại {TOKEN_FILE_PATH}: {e}[/red]"
+            )
+            return
+        except Exception as e:
+            self.mount_info_log(f"[red]Lỗi không xác định khi lưu token: {e}[/red]")
+            return
+        await self.perform_login(token)
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
-      """Xử lý sự kiện khi người dùng gửi input."""
-      if event.input.id == "token-input":
-          token = event.value.strip()
-          if not token:
-              self.mount_info_log("[red]Token không được để trống.[/red]")
-              return
-          await self.process_token_login(token)
-      elif event.input.id == "chat-input":
-          user_message = event.value.strip()
-          event.input.value = ""
-          if not user_message:
-              return
-          if user_message.startswith("/"):
-              await self.handle_client_command(
-                  user_message, self.query_one("#chat-history")
-              )
-          else:
-              chat_history = self.query_one("#chat-history")
-              chat_history.mount(Static(f">>> {user_message}"))
-              chat_history.scroll_end()
-              if self.http_client:
-                  result = await send_chat_request(
-                      self.http_client,
-                      user_message,
-                      self.current_conversation_id,
-                      self.attached_file_path,
-                      chat_history,
-                  )
-                  if result == "auth_error":
-                      self.query_one("#chat-input").disabled = True
-                      self.mount_info_log(
-                          "[red]Lỗi xác thực. Vui lòng đăng nhập lại.[/red]"
-                      )
-                  elif result is not None:
-                      self.current_conversation_id = result
-                      chat_history.scroll_end()
-              else:
-                  self.mount_info_log(
-                      "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
-                  )
-          self.attached_file_path = None
+        """Xử lý sự kiện khi người dùng gửi input."""
+        if event.input.id == "token-input":
+            token = event.value.strip()
+            if not token:
+                self.mount_info_log("[red]Token không được để trống.[/red]")
+                return
+            await self.process_token_login(token)
+        elif event.input.id == "chat-input":
+            user_message = event.value.strip()
+            event.input.value = ""
+            if not user_message:
+                return
+            if user_message.startswith("/"):
+                await self.handle_client_command(
+                    user_message, self.query_one("#chat-history")
+                )
+            else:
+                chat_history = self.query_one("#chat-history")
+                chat_history.mount(Static(f">>> {user_message}"))
+                chat_history.scroll_end()
+                if self.http_client:
+                    result = await send_chat_request(
+                        self.http_client,
+                        user_message,
+                        self.current_conversation_id,
+                        self.attached_file_path,
+                        chat_history,
+                    )
+                    if result == "auth_error":
+                        self.query_one("#chat-input").disabled = True
+                        self.mount_info_log(
+                            "[red]Lỗi xác thực. Vui lòng đăng nhập lại.[/red]"
+                        )
+                    elif result is not None:
+                        self.current_conversation_id = result
+                        chat_history.scroll_end()
+                else:
+                    self.mount_info_log(
+                        "[yellow]Chưa kết nối API. Vui lòng kiểm tra backend.[/yellow]"
+                    )
+            self.attached_file_path = None
 
     # Các phương thức còn lại giữ nguyên hoàn toàn...
     async def perform_login(self, token: str, is_saved_token: bool = False) -> None:
@@ -382,7 +390,9 @@ class FourTAIApp(App):
             chat_history.query("*").remove()
         elif cmd == "/delete":
             if self.http_client:
-                await delete_current_conversation(self.http_client, self.current_conversation_id, chat_history)
+                await delete_current_conversation(
+                    self.http_client, self.current_conversation_id, chat_history
+                )
                 await self.action_new_chat()
             else:
                 chat_history.mount(
