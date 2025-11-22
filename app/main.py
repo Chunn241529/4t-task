@@ -24,13 +24,19 @@ logging.basicConfig(level=logging.DEBUG)
 # Tạo tất cả bảng trong database
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="4T AI", version="1.0.0", description="4T AI - Your Personal Task and Chat Assistant",openapi_tags=[
-    {"name": "auth", "description": "Authentication and User Management"},
-    {"name": "task", "description": "Task Management"},
-    {"name": "chat", "description": "Chat with AI"},
-    {"name": "conversations", "description": "Conversation History Management"},
-    {"name": "messages", "description": "Message Handling"},
-    {"name": "rag", "description": "Retrieval-Augmented Generation"}])
+app = FastAPI(
+    title="4T AI",
+    version="1.0.0",
+    description="4T AI - Your Personal Task and Chat Assistant",
+    openapi_tags=[
+        {"name": "auth", "description": "Authentication and User Management"},
+        {"name": "task", "description": "Task Management"},
+        {"name": "chat", "description": "Chat with AI"},
+        {"name": "conversations", "description": "Conversation History Management"},
+        {"name": "messages", "description": "Message Handling"},
+        {"name": "rag", "description": "Retrieval-Augmented Generation"},
+    ],
+)
 
 # Cấu hình Jinja2Templates
 templates = Jinja2Templates(directory="ui/web/pages")
@@ -45,26 +51,33 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["GET", "POST", "OPTIONS"],
     allow_headers=["Content-Type", "Authorization"],
-    expose_headers=["Access-Control-Allow-Origin", "Access-Control-Allow-Methods", "Access-Control-Allow-Headers"],
+    expose_headers=[
+        "Access-Control-Allow-Origin",
+        "Access-Control-Allow-Methods",
+        "Access-Control-Allow-Headers",
+    ],
 )
+
 
 # Route để render login.html tại '/'
 @app.get("/", response_class=HTMLResponse)
 async def get_login(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
+
 @app.get("/register", response_class=HTMLResponse)
 async def get_register(request: Request):
     return templates.TemplateResponse("register.html", {"request": request})
+
 
 @app.get("/forgetpw", response_class=HTMLResponse)
 async def get_forgetpw(request: Request):
     return templates.TemplateResponse("forget-password.html", {"request": request})
 
+
 @app.get("/reset-password", response_class=HTMLResponse)
 async def get_reset_password(request: Request):
     return templates.TemplateResponse("reset-password.html", {"request": request})
-  
 
 
 app.include_router(auth_router)
@@ -74,8 +87,10 @@ app.include_router(conversations_router)
 app.include_router(messages_router)
 app.include_router(rag_router)
 
+
 def main():
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
 
 if __name__ == "__main__":
     main()

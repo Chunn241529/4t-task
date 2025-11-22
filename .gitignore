@@ -14,12 +14,13 @@ helper/model
 faiss_indices
 # Byte-compiled / optimized / DLL files
 __pycache__/
+*/__pycache__/*
 *.py[codz]
 *$py.class
 
 # C extensions
 *.so
-
+app/services/img_gen_service.json
 # Distribution / packaging
 .Python
 build/
