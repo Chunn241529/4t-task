@@ -18,9 +18,10 @@ import os
 class TokenDialog(QDialog):
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("Authentication Required")
+        self.setWindowTitle("Đăng nhập")
         self.setModal(True)
         self.setMinimumWidth(450)
+
         self.token_file = "token.txt"
 
         # Styling
@@ -80,30 +81,25 @@ class TokenDialog(QDialog):
         layout.setSpacing(15)
         layout.setContentsMargins(25, 25, 25, 25)
 
-        # Header
-        header_label = QLabel("Access Token Required")
-        header_label.setStyleSheet("font-size: 18px; font-weight: bold; color: white;")
-        layout.addWidget(header_label)
-
         # Instruction label
         label = QLabel(
-            "Please enter your Bearer token to continue using FourT Assistant."
+            "Vui lòng nhập token của bạn để tiếp tục sử dụng FourT Assistant."
         )
         label.setWordWrap(True)
         layout.addWidget(label)
 
         # Token input
         self.token_input = QLineEdit()
-        self.token_input.setPlaceholderText("Paste your token here...")
+        self.token_input.setPlaceholderText("Nhập token của bạn vào đây...")
         self.token_input.setEchoMode(QLineEdit.Password)
         layout.addWidget(self.token_input)
 
         # Get Token Link
         link_layout = QHBoxLayout()
-        link_label = QLabel("Don't have a token?")
+        link_label = QLabel("Bạn chưa có token?")
         link_label.setStyleSheet("color: #888; font-size: 12px;")
 
-        self.link_button = QPushButton("Get Token")
+        self.link_button = QPushButton("Lấy Token")
         self.link_button.setObjectName("linkButton")
         self.link_button.setCursor(QCursor(Qt.PointingHandCursor))
         self.link_button.clicked.connect(self.open_token_url)
@@ -124,11 +120,11 @@ class TokenDialog(QDialog):
         button_layout = QHBoxLayout()
         button_layout.addStretch()
 
-        self.cancel_button = QPushButton("Cancel")
+        self.cancel_button = QPushButton("Hủy")
         self.cancel_button.setObjectName("cancelButton")
         self.cancel_button.clicked.connect(self.reject)
 
-        self.save_button = QPushButton("Save & Continue")
+        self.save_button = QPushButton("Đăng nhập")
         self.save_button.clicked.connect(self.save_token)
         self.save_button.setDefault(True)
 
