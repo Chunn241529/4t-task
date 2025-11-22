@@ -14,7 +14,9 @@ token.txt
 faiss_indices
 # Byte-compiled / optimized / DLL files
 __pycache__/
-*/__pycache__/*
+app/__pycache_
+app/routers/__pycache___
+app/services/__pycache__
 *.py[codz]
 *$py.class
 
