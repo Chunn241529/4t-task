@@ -50,85 +50,80 @@ def register(user: UserRegister, db: Session = Depends(get_db)):
         username=user.username,
         email=user.email,
         password_hash=hashed,
-        gender=user.gender
+        gender=user.gender,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
     code = generate_verify_code()
-    
+
     # FIX: Luôn lưu dưới dạng dictionary với device_id là None
     # Device_id sẽ được tạo trong verify từ request
     verify_codes[user.email] = {
         "code": code,
         "device_id": None,  # Sẽ được tạo trong verify
-        "device_info": {}   # Sẽ được tạo trong verify
+        "device_info": {},  # Sẽ được tạo trong verify
     }
-    
+
     send_email(user.email, code, template_type="verification")
-    logger.debug(f"Registered user: {user.username}, email: {user.email}, code: {code}, gender: {user.gender}")
+    logger.debug(
+        f"Registered user: {user.username}, email: {user.email}, code: {code}, gender: {user.gender}"
+    )
     return {"message": "Registered, check email for code", "user_id": new_user.id}
 
 
 @router.post("/login")
 async def login(
-    user: UserLogin, 
+    user: UserLogin,
     request: Request,
-    db: Session = Depends(get_db), 
-    response: Response = None
+    db: Session = Depends(get_db),
+    response: Response = None,
 ):
     result = await AuthService.login_user(
-        user.username_or_email,
-        user.password,
-        request,
-        db
+        user.username_or_email, user.password, request, db, user.device_id
     )
-    
+
     if result.get("error"):
         raise HTTPException(result["status"], result["error"])
-    
+
     # Set cookie nếu login thành công
     if result.get("token") and response:
         response.set_cookie(
             key="access_token",
             value=f"Bearer {result['token']}",
             httponly=True,
-            max_age=7*24*60*60,
+            max_age=7 * 24 * 60 * 60,
             secure=True,
-            samesite="lax"
+            samesite="lax",
         )
-    
+
     return result
+
 
 @router.post("/verify")
 async def verify(
-    verify: VerifyCode, 
-    user_id: int = Query(...), 
+    verify: VerifyCode,
+    user_id: int = Query(...),
     request: Request = None,
-    db: Session = Depends(get_db), 
-    response: Response = None
+    db: Session = Depends(get_db),
+    response: Response = None,
 ):
-    result = await AuthService.verify_user(
-        user_id,
-        verify.code,
-        request,
-        db
-    )
-    
+    result = await AuthService.verify_user(user_id, verify.code, request, db)
+
     if result.get("error"):
         raise HTTPException(result["status"], result["error"])
-    
+
     # Set cookie nếu verify thành công
     if result.get("token") and response:
         response.set_cookie(
             key="access_token",
             value=f"Bearer {result['token']}",
             httponly=True,
-            max_age=7*24*60*60,
+            max_age=7 * 24 * 60 * 60,
             secure=True,
-            samesite="lax"
+            samesite="lax",
         )
-    
+
     return result
 
 
@@ -293,32 +288,28 @@ def reset_password(reset: ResetPassword, db: Session = Depends(get_db)):
 @router.get("/devices")
 def get_user_devices(
     request: Request,  # Thêm request
-    user_id: int = Depends(verify_jwt), 
-    db: Session = Depends(get_db)
+    user_id: int = Depends(verify_jwt),
+    db: Session = Depends(get_db),
 ):
     """Lấy danh sách devices đã verify của user"""
     devices = DeviceService.get_verified_devices(db, user_id)
-    
+
     # Thêm thông tin về device hiện tại
     current_device_id = DeviceDetectionService.generate_device_fingerprint(request)
-    
+
     for device in devices:
         device["is_current"] = device.get("device_id") == current_device_id
-    
-    return {
-        "verified_devices": devices,
-        "current_device_id": current_device_id
-    }
+
+    return {"verified_devices": devices, "current_device_id": current_device_id}
+
 
 @router.delete("/devices/{device_id}")
 def remove_device(
-    device_id: str,
-    user_id: int = Depends(verify_jwt), 
-    db: Session = Depends(get_db)
+    device_id: str, user_id: int = Depends(verify_jwt), db: Session = Depends(get_db)
 ):
     """Xóa một device khỏi danh sách verified"""
     success = DeviceService.remove_verified_device(db, user_id, device_id)
-    
+
     if success:
         return {"message": f"Device {device_id} removed successfully"}
     else:

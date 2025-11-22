@@ -139,6 +139,7 @@ class AIAssistantLoginForm {
         body: JSON.stringify({
           username_or_email: this.emailInput.value.trim(),
           password: this.passwordInput.value,
+          device_id: this.getOrCreateDeviceId(),
         }),
         credentials: "include",
       });
@@ -161,7 +162,9 @@ class AIAssistantLoginForm {
         localStorage.setItem("user_id", data.user_id);
         this.showVerificationForm();
       } else if (data.token) {
-        localStorage.setItem("user_id", this.userId || "");
+        // FIX: Use data.user_id if available, otherwise fallback to this.userId
+        const userId = data.user_id || this.userId;
+        localStorage.setItem("user_id", userId || "");
         localStorage.setItem("auth_token", data.token);
         this.showNeuralSuccess(data.token);
       } else if (data.user_id) {
@@ -180,6 +183,26 @@ class AIAssistantLoginForm {
       );
       this.setLoading(false);
     }
+  }
+
+  getOrCreateDeviceId() {
+    let deviceId = localStorage.getItem("device_id");
+    if (!deviceId) {
+      // Generate a simple UUID v4-like string if crypto.randomUUID is not available
+      if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+        deviceId = crypto.randomUUID();
+      } else {
+        deviceId = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+          var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+          return v.toString(16);
+        });
+      }
+      localStorage.setItem("device_id", deviceId);
+      console.log("Generated new device_id:", deviceId);
+    } else {
+      console.log("Using existing device_id:", deviceId);
+    }
+    return deviceId;
   }
 
   showVerificationForm() {
@@ -353,8 +376,8 @@ class AIAssistantLoginForm {
       // TỰ ĐỘNG CHUYỂN HƯỚNG SAU 3 GIÂY
       setTimeout(() => {
         console.log("Neural link established - redirecting to chat...");
-        window.location.href = "/chat";
-      }, 3000);
+        // window.location.href = "/chat";
+      }, 5000);
     }, 300);
   }
 
