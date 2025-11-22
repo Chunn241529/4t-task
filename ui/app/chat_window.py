@@ -56,7 +56,7 @@ class ChatWindow(QWidget):
         self.hide()
         if self.tray_manager:
             self.tray_manager.show_message(
-                "4T Assistant", "Đã thu nhỏ. Click icon để mở lại.", duration=2000
+                "FourT Assistant", "Đã thu nhỏ. Click icon để mở lại.", duration=2000
             )
 
     def focusInEvent(self, event):

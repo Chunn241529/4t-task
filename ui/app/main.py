@@ -30,19 +30,19 @@ def clean_resources():
         print("Đã clean GPU cache")
 
 
-def create_4t_pixmap(width, height):
-    """Tạo pixmap với chữ 4T"""
+def create_FourT_pixmap(width, height):
+    """Tạo pixmap với chữ FourT"""
     pixmap = QPixmap(width, height)
     pixmap.fill(Qt.transparent)
     painter = QPainter(pixmap)
     painter.setRenderHint(QPainter.Antialiasing)
-    font = QFont("Arial", 120, QFont.Bold)
+    font = QFont("Arial", 100, QFont.Bold)
     painter.setFont(font)
     painter.setPen(QColor("white"))
-    text_rect = painter.fontMetrics().boundingRect("4T")
+    text_rect = painter.fontMetrics().boundingRect("FourT")
     text_x = (pixmap.width() - text_rect.width()) // 2
     text_y = (pixmap.height() - text_rect.height()) // 2
-    painter.drawText(text_x, text_y + painter.fontMetrics().ascent(), "4T")
+    painter.drawText(text_x, text_y + painter.fontMetrics().ascent(), "FourT")
     painter.end()
     return pixmap
 
@@ -51,13 +51,13 @@ def main():
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
 
-    # Tạo pixmap cho splash với chữ 4T lớn ở giữa
-    splash_pixmap = create_4t_pixmap(400, 300)
+    # Tạo pixmap cho splash với chữ FourT lớn ở giữa
+    splash_pixmap = create_FourT_pixmap(400, 300)
     splash = QSplashScreen(splash_pixmap, QtCore.WindowStaysOnTopHint)
     splash.setWindowFlags(QtCore.FramelessWindowHint | QtCore.WindowStaysOnTopHint)
 
     # Tạo label cho message và căn giữa
-    message_label = QLabel("Khởi động 4T Assistant...", splash)
+    message_label = QLabel("Khởi động FourT Assistant...", splash)
     message_label.setAlignment(QtCore.AlignCenter)
     message_label.setStyleSheet(
         "color: white; font-size: 14px; background: transparent;"
@@ -105,13 +105,11 @@ def main():
     # Ẩn splash
     splash.finish(chat_window)
 
-    # Hiển thị thông báo với icon 4T
+    # Hiển thị thông báo với icon FourT
     msg_box = QMessageBox()
-    msg_box.setWindowTitle("4T Assistant")
-    msg_box.setText(
-        "Ứng dụng 4T Assistant đã khởi động thành công.\nĐang chạy ở chế độ nền trong khay hệ thống."
-    )
-    # msg_box.setIconPixmap(create_4t_pixmap(64, 64))  # Icon nhỏ cho QMessageBox
+    msg_box.setWindowTitle("FourT Assistant")
+    msg_box.setText("FourT Assistant đang chạy ở chế độ nền trong khay hệ thống.")
+    # msg_box.setIconPixmap(create_FourT_pixmap(64, 64))  # Icon nhỏ cho QMessageBox
     msg_box.setStandardButtons(QMessageBox.Ok)
     msg_box.exec()
 

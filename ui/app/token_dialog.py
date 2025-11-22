@@ -86,7 +86,9 @@ class TokenDialog(QDialog):
         layout.addWidget(header_label)
 
         # Instruction label
-        label = QLabel("Please enter your Bearer token to continue using 4T Assistant.")
+        label = QLabel(
+            "Please enter your Bearer token to continue using FourT Assistant."
+        )
         label.setWordWrap(True)
         layout.addWidget(label)
 
