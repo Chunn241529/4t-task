@@ -57,7 +57,7 @@ class UIComponents:
             Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool
         )
         self.parent.setAttribute(Qt.WA_TranslucentBackground)
-        self.parent.setWindowTitle("4T Assistant")
+        self.parent.setWindowTitle("FourT Assistant")
         self.parent.setFixedWidth(600)
         self.parent.hide()
 
@@ -118,7 +118,7 @@ class UIComponents:
 
         self.input_box = QTextEdit(self.main_frame)
         self.input_box.setObjectName("inputBox")
-        self.input_box.setPlaceholderText("Hỏi 4T...")
+        self.input_box.setPlaceholderText("Nhập tin nhắn hoặc /help")
         self.input_box.setAcceptRichText(False)
         self.input_box.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.input_box.textChanged.connect(self.adjust_input_box_height)

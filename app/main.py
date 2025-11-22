@@ -25,9 +25,9 @@ logging.basicConfig(level=logging.DEBUG)
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title="4T AI",
+    title="FourT AI",
     version="1.0.0",
-    description="4T AI - Your Personal Task and Chat Assistant",
+    description="FourT AI - Your Personal Task and Chat Assistant",
     openapi_tags=[
         {"name": "auth", "description": "Authentication and User Management"},
         {"name": "task", "description": "Task Management"},

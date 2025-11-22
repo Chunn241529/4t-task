@@ -34,7 +34,7 @@ logging.basicConfig(
 
 
 class FourTAIApp(App):
-    """Giao diện TUI tối giản cho 4T AI với nút đăng nhập và chức năng chat."""
+    """Giao diện TUI tối giản cho FourT AI với nút đăng nhập và chức năng chat."""
 
     BINDINGS = [
         Binding("ctrl+c", "quit", "Thoát"),
@@ -159,7 +159,7 @@ class FourTAIApp(App):
         yield Header()
         with Vertical(id="login-area"):
             with Vertical(classes="login-container"):
-                yield Static("🔐 4T AI LOGIN", classes="login-title")
+                yield Static("🔐 FourT AI LOGIN", classes="login-title")
                 yield Static("Nhập token để bắt đầu", classes="login-instruction")
                 with Horizontal(classes="token-input-row"):
                     yield Input(
@@ -294,7 +294,7 @@ class FourTAIApp(App):
             print("[AUTO LOGIN SUCCESFULL]")
         else:
             self.mount_info_log(
-                "[green]Đăng nhập vào 4T AI thành công! Token đã được lưu cho lần sau.[/green]"
+                "[green]Đăng nhập vào FourT AI thành công! Token đã được lưu cho lần sau.[/green]"
             )
 
         await self.handle_client_command("/help", self.query_one("#chat-history"))
@@ -313,13 +313,13 @@ class FourTAIApp(App):
     async def handle_client_command(
         self, command: str, chat_history: ScrollableContainer
     ) -> None:
-        """Xử lý các lệnh client-side cho 4T AI."""
+        """Xử lý các lệnh client-side cho FourT AI."""
         parts = command.split(" ", 1)
         cmd = parts[0]
         args = parts[1].strip() if len(parts) > 1 else ""
 
         if cmd == "/help":
-            help_text = """[bold][#58A6FF]📚 HƯỚNG DẪN SỬ DỤNG 4T AI[/bold]
+            help_text = """[bold][#58A6FF]📚 HƯỚNG DẪN SỬ DỤNG FourT AI[/bold]
 
   [bold][#58A6FF]/new[/]: Bắt đầu một cuộc hội thoại mới 🆕
   [bold][#58A6FF]/history[/]: Xem danh sách các cuộc hội thoại đã có 📜
@@ -338,13 +338,13 @@ class FourTAIApp(App):
                 try:
                     os.remove(TOKEN_FILE_PATH)
                     self.exit(
-                        "Token đã được xóa. Vui lòng khởi động lại ứng dụng 4T AI."
+                        "Token đã được xóa. Vui lòng khởi động lại ứng dụng FourT AI."
                     )
                 except Exception as e:
                     chat_history.mount(Static(f"[red]Lỗi khi xóa token: {e}[/red]"))
             else:
                 self.exit(
-                    "Không có token nào được lưu để xóa. Đang thoát khỏi 4T AI..."
+                    "Không có token nào được lưu để xóa. Đang thoát khỏi FourT AI..."
                 )
         elif cmd == "/new":
             await self.action_new_chat()
@@ -425,4 +425,4 @@ class FourTAIApp(App):
         self.attached_file_path = None
         self.query_one("#chat-history").query("*").remove()
         self.query_one("#chat-input").focus()
-        self.mount_info_log("Đã bắt đầu cuộc hội thoại mới với 4T AI.")
+        self.mount_info_log("Đã bắt đầu cuộc hội thoại mới với FourT AI.")

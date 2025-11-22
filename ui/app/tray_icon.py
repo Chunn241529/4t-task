@@ -17,17 +17,17 @@ class TrayIconManager:
         pixmap.fill(Qt.transparent)
         painter = QPainter(pixmap)
         painter.setBrush(QColor("white"))
-        painter.drawText(pixmap.rect(), Qt.AlignCenter, "4T")
+        painter.drawText(pixmap.rect(), Qt.AlignCenter, "FourT")
         painter.end()
         return QIcon(pixmap)
 
     def _create_tray_icon(self):
         icon = self._create_icon()
         self.tray_icon = QSystemTrayIcon(icon, self.app)
-        self.tray_icon.setToolTip("Trợ lý AI 4T")
+        self.tray_icon.setToolTip("Trợ lý AI FourT")
 
         menu = QMenu()
-        show_action = QAction("Hỏi 4T", self.app)
+        show_action = QAction("Hỏi FourT", self.app)
         quit_action = QAction("Thoát", self.app)
 
         show_action.triggered.connect(self.chat_window.center_and_show)
@@ -38,6 +38,8 @@ class TrayIconManager:
         self.tray_icon.setContextMenu(menu)
         self.tray_icon.show()
 
-    def show_message(self, title, message, icon=QSystemTrayIcon.Information, duration=3000):
+    def show_message(
+        self, title, message, icon=QSystemTrayIcon.Information, duration=3000
+    ):
         if self.tray_icon:
             self.tray_icon.showMessage(title, message, icon, duration)

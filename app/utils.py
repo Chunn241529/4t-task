@@ -76,7 +76,7 @@ def send_email(to_email: str, code: str, template_type: str = "verification"):
                     <p style="font-size: 14px;">If you did not request this code, please ignore this email or contact our support team.</p>
                     <hr style="border: 1px solid #eee; margin: 20px 0;">
                     <p style="font-size: 12px; color: #777;">
-                        &copy; {datetime.now().year} 4TAI. All rights reserved.<br>
+                        &copy; {datetime.now().year} FourTAI. All rights reserved.<br>
                         For support, contact us at <a href="mailto:vtrung836@gmail.com.com" style="color: #3498db;">vtrung836@gmail.com.com</a>
                     </p>
                 </div>
@@ -102,7 +102,7 @@ def send_email(to_email: str, code: str, template_type: str = "verification"):
                     <p style="font-size: 14px;">If you did not request a password reset, please ignore this email or contact our support team.</p>
                     <hr style="border: 1px solid #eee; margin: 20px 0;">
                     <p style="font-size: 12px; color: #777;">
-                        &copy; {datetime.now().year} 4T AI. All rights reserved.<br>
+                        &copy; {datetime.now().year} FourT AI. All rights reserved.<br>
                         For support, contact us at <a href="mailto:vtrung836@gmail.com.com" style="color: #3498db;">vtrung836@gmail.com.com</a>
                     </p>
                 </div>
@@ -157,22 +157,22 @@ async def verify_jwt(request: Request):
     Trả về user_id nếu token hợp lệ.
     """
     token = None
-    
+
     # Ưu tiên lấy từ header Authorization
     auth_header = request.headers.get("Authorization")
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header[7:]
-    
+
     # Nếu không có trong header, thử lấy từ cookie
     if not token:
         cookie_token = request.cookies.get("access_token")
         if cookie_token and cookie_token.startswith("Bearer "):
             token = cookie_token[7:]  # Bỏ "Bearer "
-    
+
     if not token:
         logger.error("No token provided in header or cookie")
         raise HTTPException(status_code=401, detail="Authentication required")
-    
+
     try:
         payload = decode_jwt(token)
         user_id = int(payload.get("sub"))

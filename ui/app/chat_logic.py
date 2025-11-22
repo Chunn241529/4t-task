@@ -129,7 +129,7 @@ class ChatLogic:
 
         if cmd == "/help":
             help_text = """
-            <h3>📚 HƯỚNG DẪN SỬ DỤNG 4T AI</h3>
+            <h3>📚 HƯỚNG DẪN SỬ DỤNG FourT AI</h3>
             <ul>
                 <li><b>/new</b>: Bắt đầu cuộc hội thoại mới</li>
                 <li><b>/history</b>: Xem lịch sử hội thoại</li>
@@ -278,7 +278,7 @@ class ChatLogic:
         self.parent.ui.send_stop_button.set_running(False)
         self.parent.spinner_logic.reset_to_idle()
         self.parent.ui.input_box.setEnabled(True)
-        self.parent.ui.input_box.setPlaceholderText("Hỏi 4T...")
+        self.parent.ui.input_box.setPlaceholderText("Nhập tin nhắn hoặc /help...")
         self.parent.ui.thinking_widget.hide()
         self.parent.ui.response_display.append("\n[Đã dừng phản hồi]")
 
@@ -453,7 +453,7 @@ class ChatLogic:
 
     def handle_error(self, error_message):
         self.parent.ui.input_box.setEnabled(True)
-        self.parent.ui.input_box.setPlaceholderText("Hỏi 4T...")
+        self.parent.ui.input_box.setPlaceholderText("Nhập tin nhắn hoặc /help...")
         self.parent.waiting_for_response = False
         self.parent.spinner_logic.reset_to_idle()
         self.parent.ui.response_display.setHtml(
@@ -471,7 +471,7 @@ class ChatLogic:
     def on_generation_finished(self):
         print("Generation finished")
         self.parent.ui.input_box.setEnabled(True)
-        self.parent.ui.input_box.setPlaceholderText("Hỏi 4T...")
+        self.parent.ui.input_box.setPlaceholderText("Nhập tin nhắn hoặc /help...")
         self.parent.ui.input_box.clear()
         self.parent.waiting_for_response = False
         self.parent.spinner_logic.reset_to_idle()
